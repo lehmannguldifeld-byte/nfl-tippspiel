@@ -148,6 +148,13 @@ BONUS_QUESTIONS = [
 # --- DATENBANK VERWALTUNG ---
 DB_FILE = "nfl_tippspiel_data.json"
 
+DEFAULT_COMMENTS = {
+    "1": [
+        {"user": "Pädu", "text": "Ronny danke fürs kochen! 🍳🔥", "time": "21:05"},
+        {"user": "Ronny", "text": "Immer gerne, dafür holst du am Sonntag 0 Punkte! 😜", "time": "21:08"}
+    ]
+}
+
 def fetch_from_github():
     try:
         token = st.secrets.get("GITHUB_TOKEN")
@@ -175,7 +182,7 @@ def load_db():
             gh_data.get("bonus_db", {u: {} for u in MITSPIELER}),
             gh_data.get("bonus_results", {}),
             gh_data.get("joker_db", {u: {} for u in MITSPIELER}),
-            gh_data.get("comments_db", {})
+            gh_data.get("comments_db", DEFAULT_COMMENTS)
         )
     
     if os.path.exists(DB_FILE):
@@ -187,12 +194,18 @@ def load_db():
                     data.get("bonus_db", {u: {} for u in MITSPIELER}),
                     data.get("bonus_results", {}),
                     data.get("joker_db", {u: {} for u in MITSPIELER}),
-                    data.get("comments_db", {})
+                    data.get("comments_db", DEFAULT_COMMENTS)
                 )
         except Exception:
             pass
             
-    return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}, {}
+    return (
+        {u: {} for u in MITSPIELER}, 
+        {u: {} for u in MITSPIELER}, 
+        {}, 
+        {u: {} for u in MITSPIELER}, 
+        DEFAULT_COMMENTS
+    )
 
 def sync_to_github(data_dict):
     try:
@@ -284,7 +297,7 @@ def get_nfl_games(week_num=1, season_type=2):
     except Exception:
         return []
 
-# --- PUNKTE LOGIK & HALL OF FAME STATS ---
+# --- PUNKTE LOGIK ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1):
     scores = {u: 0 for u in MITSPIELER}
     weekly_hits = {u: 0 for u in MITSPIELER}
@@ -343,7 +356,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "🔒 Tippen (Login)"
 ])
 
-# --- TAB 1: RANGLISTE & HALL OF FAME BADGES ---
+# --- TAB 1: RANGLISTE ---
 with tab1:
     st.subheader(f"Gesamtwertung — Woche {woche}")
     for rank, (user, score) in enumerate(sorted_scores, 1):
@@ -364,11 +377,9 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: INTERAKTIVES RENNEN UM DIE KRONE (SAISON-CHART) ---
+# --- TAB 2: INTERAKTIVES RENNEN UM DIE KRONE ---
 with tab2:
     st.subheader("📈 Der Kampf um die Krone (Punkteverlauf)")
-    
-    # Berechne fiktiven/echten Verlauf für den Chart
     history_data = {u: [0] for u in MITSPIELER}
     for w in range(1, woche + 1):
         w_games = get_nfl_games(week_num=w)
@@ -405,32 +416,29 @@ with tab3:
     st.markdown("---")
     st.subheader("💬 Trash Talk Pinnwand")
     
-    # Kommentare der Woche anzeigen
-    w_comments = comments_db.get(str(woche), [])
+    w_comments = comments_db.get(str(woche), DEFAULT_COMMENTS.get(str(woche), []))
     for c in w_comments:
         st.markdown(f"<div class='chat-bubble'><b>{c['user']}:</b> {c['text']} <span style='font-size:0.75rem; color:#94a3b8;'>({c['time']})</span></div>", unsafe_allow_html=True)
         
-    if is_after_thursday_noon:
-        with st.form("comment_form"):
-            c_user = st.selectbox("Wer schreibt?", MITSPIELER, key="comment_u")
-            c_pass = st.text_input("Passwort zur Bestätigung", type="password", key="comment_p")
-            c_text = st.text_input("Dein Spruch / Kommentar zur Woche:")
-            if st.form_submit_button("💬 Kommentar posten"):
-                if c_pass == PASSWORDS.get(c_user) and c_text.strip():
-                    if str(woche) not in comments_db:
-                        comments_db[str(woche)] = []
-                    comments_db[str(woche)].append({
-                        "user": c_user,
-                        "text": c_text.strip(),
-                        "time": datetime.now().strftime("%H:%M")
-                    })
-                    save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db)
-                    st.success("Spruch gepostet!")
-                    st.rerun()
-                else:
-                    st.error("Falsches Passwort oder leerer Text.")
-    else:
-        st.caption("🔒 Die Trash-Talk Pinnwand öffnet jeden Donnerstag ab 12:00 Uhr nach der Tippabgabe!")
+    st.markdown("##### ✏️ Spruch auf die Pinnwand posten:")
+    with st.form("comment_form"):
+        c_user = st.selectbox("Wer schreibt?", MITSPIELER, key="comment_u")
+        c_pass = st.text_input("Passwort zur Bestätigung", type="password", key="comment_p")
+        c_text = st.text_input("Dein Spruch / Kommentar zur Woche:")
+        if st.form_submit_button("💬 Kommentar posten"):
+            if c_pass == PASSWORDS.get(c_user) and c_text.strip():
+                if str(woche) not in comments_db:
+                    comments_db[str(woche)] = []
+                comments_db[str(woche)].append({
+                    "user": c_user,
+                    "text": c_text.strip(),
+                    "time": datetime.now().strftime("%H:%M")
+                })
+                save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db)
+                st.success("Spruch gepostet!")
+                st.rerun()
+            else:
+                st.error("Falsches Passwort oder leerer Text.")
 
 # --- TAB 4: TABLEARISCHE UBERSICHT ---
 with tab4:
