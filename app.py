@@ -49,14 +49,14 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
 
-    /* FIX FÜR INPUT-SCHRIFTFARBE IN DEN BONUSTIPPS & PASSWÖRTERN */
-    .stTextInput input {
+    /* FIX FÜR INPUT-SCHRIFTFARBE */
+    .stTextInput input, .stSelectbox select {
         color: #ffffff !important;
         background-color: rgba(15, 23, 42, 0.8) !important;
         border: 1px solid #38bdf8 !important;
         border-radius: 8px !important;
     }
-    .stTextInput label {
+    .stTextInput label, .stSelectbox label {
         color: #f8fafc !important;
         font-weight: 600 !important;
     }
@@ -90,6 +90,7 @@ def load_db():
         tipps_db = {}
         bonus_db = {}
         bonus_results = {}
+        joker_db = {}
         for idx, row in df.iterrows():
             u = str(row['user'])
             if u in MITSPIELER:
@@ -97,30 +98,34 @@ def load_db():
                 except: tipps_db[u] = {}
                 try: bonus_db[u] = json.loads(str(row['bonus_json']))
                 except: bonus_db[u] = {}
+                try: joker_db[u] = json.loads(str(row.get('joker_json', '{}')))
+                except: joker_db[u] = {}
             elif u == "ADMIN_BONUS_RESULTS":
                 try: bonus_results = json.loads(str(row['bonus_json']))
                 except: bonus_results = {}
-        return tipps_db, bonus_db, bonus_results
+        return tipps_db, bonus_db, bonus_results, joker_db
     except Exception as e:
-        return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}
+        return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}
 
-def save_db(tipps_db, bonus_db, bonus_results):
+def save_db(tipps_db, bonus_db, bonus_results, joker_db):
     rows = []
     for u in MITSPIELER:
         rows.append({
             "user": u, 
             "tipps_json": json.dumps(tipps_db.get(u, {})),
-            "bonus_json": json.dumps(bonus_db.get(u, {}))
+            "bonus_json": json.dumps(bonus_db.get(u, {})),
+            "joker_json": json.dumps(joker_db.get(u, {}))
         })
     rows.append({
         "user": "ADMIN_BONUS_RESULTS",
         "tipps_json": "{}",
-        "bonus_json": json.dumps(bonus_results)
+        "bonus_json": json.dumps(bonus_results),
+        "joker_json": "{}"
     })
     new_df = pd.DataFrame(rows)
     conn.update(data=new_df)
 
-tipps_db, bonus_db, bonus_results = load_db()
+tipps_db, bonus_db, bonus_results, joker_db = load_db()
 
 # --- ESPN API ---
 @st.cache_data(ttl=300)
@@ -158,8 +163,8 @@ def get_nfl_games(week_num=1, season_type=2):
         })
     return games
 
-# --- PUNKTE LOGIK ---
-def calculate_scores(all_games, phase="Regular Season"):
+# --- PUNKTE LOGIK INKLUSIVE JOKER ---
+def calculate_scores(all_games, phase="Regular Season", week_num=1):
     scores = {u: 0 for u in MITSPIELER}
     weekly_hits = {u: 0 for u in MITSPIELER}
     
@@ -169,7 +174,11 @@ def calculate_scores(all_games, phase="Regular Season"):
         if game['completed'] and game['winner_abbr']:
             for u in MITSPIELER:
                 if tipps_db.get(u, {}).get(game['id']) == game['winner_abbr']:
-                    scores[u] += 5 * multiplier
+                    # Prüfen ob Joker für dieses Spiel gesetzt wurde
+                    joker_game_id = joker_db.get(u, {}).get(str(week_num))
+                    joker_mult = 2 if (joker_game_id and joker_game_id == game['id']) else 1
+                    
+                    scores[u] += 5 * multiplier * joker_mult
                     weekly_hits[u] += 1
 
     for u in MITSPIELER:
@@ -193,7 +202,11 @@ with c2:
     phase_choice = "Regular Season" if woche <= 18 else "Playoffs"
 
 nfl_games = get_nfl_games(week_num=woche, season_type=2)
-scores, hits = calculate_scores(nfl_games, phase=phase_choice)
+scores, hits = calculate_scores(nfl_games, phase=phase_choice, week_num=woche)
+
+# Ermitteln wer auf Platz 7 & 8 liegt (Joker Berechtigung)
+sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if len(sorted_scores) >= 2 else []
 
 # --- PRÜFUNG: DEADLINE ---
 now = datetime.now()
@@ -209,15 +222,17 @@ tab1, tab2, tab3, tab4 = st.tabs(["📊 Rangliste", "📋 Tipp-Übersicht (Woche
 # --- TAB 1: RANGLISTE ---
 with tab1:
     st.subheader(f"Leaderboard — Woche {woche}")
-    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     for rank, (user, score) in enumerate(sorted_scores, 1):
         badge = "🥇" if rank == 1 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
         fire = " 🔥 ON FIRE (+10 Bonus!)" if hits[user] >= 6 else ""
+        joker_badge = " 🃏 (Joker-Berechtigt!)" if user in bottom_two else ""
+        
         st.markdown(f"""
             <div class='leaderboard-card'>
                 <div>
                     <span style='font-size: 1.3rem; font-weight: bold;'>{badge} {user}</span>
                     <span style='color: #4ade80; font-weight: bold; margin-left: 10px;'>{fire}</span>
+                    <span style='color: #f59e0b; font-weight: bold; margin-left: 10px;'>{joker_badge}</span>
                 </div>
                 <div style='font-size: 1.5rem; font-weight: 800; color: #38bdf8;'>
                     {score} <span style='font-size: 0.9rem; color: #cbd5e1;'>Pkt</span>
@@ -239,7 +254,11 @@ with tab2:
             for g in nfl_games:
                 row = {"Begegnung": g['matchup'], "Status": g['status_detail']}
                 for u in MITSPIELER:
-                    row[u] = tipps_db.get(u, {}).get(g['id'], "-")
+                    t = tipps_db.get(u, {}).get(g['id'], "-")
+                    # Wenn Joker gesetzt wurde, entsprechend markieren
+                    if joker_db.get(u, {}).get(str(woche)) == g['id']:
+                        t += " 🃏 (2x)"
+                    row[u] = t
                 table_data.append(row)
             
             df_table = pd.DataFrame(table_data)
@@ -272,7 +291,7 @@ with tab3:
             
             if can_edit_bonus and st.form_submit_button("🎯 Bonustipps speichern"):
                 bonus_db[user_b_login] = new_b
-                save_db(tipps_db, bonus_db, bonus_results)
+                save_db(tipps_db, bonus_db, bonus_results, joker_db)
                 st.success("Bonustipps erfolgreich gespeichert!")
                 st.rerun()
     elif pass_b_login != "":
@@ -288,11 +307,11 @@ with tab3:
                     admin_new_res[q_key] = st.text_input(f"Lösung: {q}", value=bonus_results.get(q_key, ""))
                 if st.form_submit_button("Musterlösung speichern & Punkte verteilen"):
                     bonus_results = admin_new_res
-                    save_db(tipps_db, bonus_db, bonus_results)
+                    save_db(tipps_db, bonus_db, bonus_results, joker_db)
                     st.success("Musterlösung gespeichert! Punkte wurden aktualisiert.")
                     st.rerun()
 
-# --- TAB 4: NORMALES TIPPEN ---
+# --- TAB 4: NORMALES TIPPEN INKLUSIVE JOKER SELECTION ---
 with tab4:
     st.subheader("Login & Spieltag tippen")
     
@@ -312,6 +331,25 @@ with tab4:
         st.success(f"Willkommen {active_user}!")
         user_existing_tipps = tipps_db.get(active_user, {})
         new_tipps = user_existing_tipps.copy()
+
+        # JOKER SYSTEM FÜR PLATZ 7 & 8
+        selected_joker_game = None
+        if active_user in bottom_two:
+            st.warning("🃏 **Catch-Up Joker verfügbar!** Da du aktuell auf den hinteren Plätzen liegst, kannst du für EIN Spiel dieser Woche die doppelte Punkteanzahl (2x) aktivieren.")
+            joker_options = {"Kein Joker": None}
+            for g in nfl_games:
+                joker_options[g['matchup']] = g['id']
+            
+            current_joker = joker_db.get(active_user, {}).get(str(woche))
+            default_idx = 0
+            if current_joker:
+                for idx, (label, g_id) in enumerate(joker_options.items()):
+                    if g_id == current_joker:
+                        default_idx = idx
+                        break
+
+            chosen_joker_label = st.selectbox("Wähle dein Joker-Spiel für 2x Punkte:", list(joker_options.keys()), index=default_idx)
+            selected_joker_game = joker_options[chosen_joker_label]
 
         with st.form("tipp_form"):
             for game in nfl_games:
@@ -340,10 +378,15 @@ with tab4:
                 st.markdown("</div>", unsafe_allow_html=True)
 
             if not is_after_thursday_noon:
-                if st.form_submit_button("🏈 Tipps speichern"):
+                if st.form_submit_button("🏈 Tipps & Joker speichern"):
                     tipps_db[active_user] = new_tipps
-                    save_db(tipps_db, bonus_db, bonus_results)
-                    st.success("Tipps gespeichert!")
+                    if active_user in bottom_two:
+                        if active_user not in joker_db:
+                            joker_db[active_user] = {}
+                        joker_db[active_user][str(woche)] = selected_joker_game
+                    
+                    save_db(tipps_db, bonus_db, bonus_results, joker_db)
+                    st.success("Tipps und Joker-Einstellung gespeichert!")
                     st.rerun()
             else:
                 st.warning("Das Speichern ist nicht mehr möglich, da die Frist abgelaufen ist.")
