@@ -63,7 +63,7 @@ st.markdown("""
     
     /* Demo Banner Styling */
     .demo-banner {
-        background: linear-gradient(90deg, #b91c1c 0%, #f59e0b 50%, #b91c1c 100%);
+        background: linear-gradient(90deg, #0284c7 0%, #38bdf8 50%, #0284c7 100%);
         color: #ffffff;
         font-weight: 800;
         text-align: center;
@@ -72,7 +72,34 @@ st.markdown("""
         font-size: 1.1rem;
         letter-spacing: 1px;
         margin-bottom: 20px;
-        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
+    }
+
+    /* Stylish Custom Table Badges */
+    .badge-home {
+        background-color: #0284c7;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+        display: inline-block;
+    }
+    .badge-away {
+        background-color: #ea580c;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+        display: inline-block;
+    }
+    .badge-joker {
+        background-color: #f59e0b;
+        color: #0f172a;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 900;
+        border: 1px solid #ffffff;
+        display: inline-block;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -177,11 +204,10 @@ def get_nfl_games(week_num=1, season_type=2):
         })
     return games
 
-# --- PUNKTE LOGIK INKLUSIVE JOKER ---
+# --- PUNKTE LOGIK ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1):
     scores = {u: 0 for u in MITSPIELER}
     weekly_hits = {u: 0 for u in MITSPIELER}
-    
     multiplier = 1 if phase == "Regular Season" else (2 if phase == "Playoffs" else 3)
 
     for game in all_games:
@@ -190,7 +216,6 @@ def calculate_scores(all_games, phase="Regular Season", week_num=1):
                 if tipps_db.get(u, {}).get(game['id']) == game['winner_abbr']:
                     joker_game_id = joker_db.get(u, {}).get(str(week_num))
                     joker_mult = 2 if (joker_game_id and joker_game_id == game['id']) else 1
-                    
                     scores[u] += 5 * multiplier * joker_mult
                     weekly_hits[u] += 1
 
@@ -251,29 +276,46 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: TABLEARISCHE UBERSICHT (MIT ANGENEHMER DEMO-FUNKTION) ---
+# --- TAB 2: TABLEARISCHE UBERSICHT ---
 with tab2:
     st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
     
-    # KONTROLL-SCHALTER FÜR DEMO-ANSICHT
     show_demo = st.checkbox("💡 DEMO-MODUS ANZEIGEN (Vorschau für die Gruppe)", value=not is_after_thursday_noon)
     
+    # FARB-STYLING HELPER METHODE
+    def style_teams(val, team1, team2):
+        if "🃏" in str(val):
+            return 'background-color: #f59e0b; color: #0f172a; font-weight: bold; border-radius: 6px;'
+        elif team1 in str(val):
+            return 'background-color: #0284c7; color: white; font-weight: bold; border-radius: 6px;'
+        elif team2 in str(val):
+            return 'background-color: #ea580c; color: white; font-weight: bold; border-radius: 6px;'
+        return ''
+
     if show_demo:
-        st.markdown("<div class='demo-banner'>⚡ VORSCHAU / DEMO-ANSICHT (So sieht die Übersicht jeden Donnerstag ab 12:00 Uhr aus!) ⚡</div>", unsafe_allow_html=True)
+        st.markdown("<div class='demo-banner'>⚡ VORSCHAU: Blau = Team 1 | Orange = Team 2 | Gold = Joker (2x) ⚡</div>", unsafe_allow_html=True)
         
-        # Hochwertige Demo-Daten für die Anschauung
         demo_games = [
-            {"Matchup": "Chiefs vs. Eagles 🏈", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 (2x)", "Domi": "PHI 🃏 (2x)", "Pädu": "KC"},
-            {"Matchup": "49ers vs. Cowboys 🏈", "Andy": "SF", "Ronny": "SF", "Bauzzen": "SF", "Bössi": "DAL", "Jerome": "SF", "Mäni": "DAL", "Domi": "SF", "Pädu": "SF"},
-            {"Matchup": "Lions vs. Packers 🏈", "Andy": "DET", "Ronny": "GB", "Bauzzen": "DET", "Bössi": "DET", "Jerome": "GB", "Mäni": "GB", "Domi": "DET", "Pädu": "DET"},
-            {"Matchup": "Bills vs. Dolphins 🏈", "Andy": "BUF", "Ronny": "BUF", "Bauzzen": "MIA", "Bössi": "BUF", "Jerome": "BUF", "Mäni": "BUF", "Domi": "MIA", "Pädu": "BUF"},
-            {"Matchup": "Ravens vs. Bengals 🏈", "Andy": "BAL", "Ronny": "BAL", "Bauzzen": "BAL", "Bössi": "CIN", "Jerome": "BAL", "Mäni": "CIN", "Domi": "BAL", "Pädu": "BAL"},
-            {"Matchup": "Texans vs. Colts 🏈", "Andy": "HOU", "Ronny": "HOU", "Bauzzen": "HOU", "Bössi": "HOU", "Jerome": "IND", "Mäni": "HOU", "Domi": "HOU", "Pädu": "IND"}
+            {"Matchup": "Chiefs (KC) vs. Eagles (PHI)", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 2x", "Domi": "PHI 🃏 2x", "Pädu": "KC"},
+            {"Matchup": "49ers (SF) vs. Cowboys (DAL)", "Andy": "SF", "Ronny": "SF", "Bauzzen": "SF", "Bössi": "DAL", "Jerome": "SF", "Mäni": "DAL", "Domi": "SF", "Pädu": "SF"},
+            {"Matchup": "Lions (DET) vs. Packers (GB)", "Andy": "DET", "Ronny": "GB", "Bauzzen": "DET", "Bössi": "DET", "Jerome": "GB", "Mäni": "GB", "Domi": "DET", "Pädu": "DET"},
+            {"Matchup": "Bills (BUF) vs. Dolphins (MIA)", "Andy": "BUF", "Ronny": "BUF", "Bauzzen": "MIA", "Bössi": "BUF", "Jerome": "BUF", "Mäni": "BUF", "Domi": "MIA", "Pädu": "BUF"},
+            {"Matchup": "Ravens (BAL) vs. Bengals (CIN)", "Andy": "BAL", "Ronny": "BAL", "Bauzzen": "BAL", "Bössi": "CIN", "Jerome": "BAL", "Mäni": "CIN", "Domi": "BAL", "Pädu": "BAL"}
         ]
         
         df_demo = pd.DataFrame(demo_games)
-        st.dataframe(df_demo, use_container_width=True, height=280)
-        st.caption("ℹ️ *Hinweis:* Die Joker (🃏 2x) von den Plätzen 7 & 8 werden automatisch hervorgehoben.")
+        
+        # Anwenden des dynamischen Farb-Stylings auf die Spalten
+        styled_df = df_demo.style.apply(lambda col: [
+            style_teams(v, "KC", "PHI") if "Chiefs" in df_demo.loc[i, "Matchup"] else
+            style_teams(v, "SF", "DAL") if "49ers" in df_demo.loc[i, "Matchup"] else
+            style_teams(v, "DET", "GB") if "Lions" in df_demo.loc[i, "Matchup"] else
+            style_teams(v, "BUF", "MIA") if "Bills" in df_demo.loc[i, "Matchup"] else
+            style_teams(v, "BAL", "CIN") for i, v in enumerate(col)
+        ] if col.name in MITSPIELER else [''] * len(col))
+
+        st.dataframe(styled_df, use_container_width=True, height=280)
+        st.caption("🔵 **Blau:** Heimteam | 🟠 **Orange:** Auswärtsteam | 🟡 **Gold:** Joker-Einsatz")
     
     elif not is_after_thursday_noon:
         st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
@@ -287,7 +329,7 @@ with tab2:
                 for u in MITSPIELER:
                     t = tipps_db.get(u, {}).get(g['id'], "-")
                     if joker_db.get(u, {}).get(str(woche)) == g['id']:
-                        t += " 🃏 (2x)"
+                        t += " 🃏 2x"
                     row[u] = t
                 table_data.append(row)
             
