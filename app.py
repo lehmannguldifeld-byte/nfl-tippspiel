@@ -1,10 +1,11 @@
 import streamlit as st
 import requests
 import json
+from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
 # --- SEITEN-KONFIGURATION & FANCY NFL STYLING ---
-st.set_page_config(page_title="NFL Tippspiel", page_icon="🏈", layout="wide")
+st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
 
 st.markdown("""
     <style>
@@ -66,7 +67,6 @@ def save_user_tipp(user, user_tipps):
     all_tipps = load_all_tipps()
     all_tipps[user] = user_tipps
     
-    # Dataframe zum Speichern aufbauen
     rows = []
     for u in MITSPIELER:
         u_data = all_tipps.get(u, {})
@@ -76,11 +76,11 @@ def save_user_tipp(user, user_tipps):
     new_df = pd.DataFrame(rows)
     conn.update(data=new_df)
 
-# --- ESPN API: LIVE SPIELE & RESULTATE HOCHLADEN ---
-@st.cache_data(ttl=300) # Cacht Daten für 5 Min
+# --- ESPN API: LIVE SPIELE & RESULTATE DER NEUEN SAISON ---
+@st.cache_data(ttl=300)
 def get_nfl_games(week_num=1, season_type=2):
-    # season_type: 2 = Regular Season, 3 = Postseason (Playoffs/SuperBowl)
-    url = f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=2024&week={week_num}&seasontype={season_type}"
+    current_year = datetime.now().year
+    url = f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={current_year}&week={week_num}&seasontype={season_type}"
     res = requests.get(url).json()
     
     games = []
@@ -138,7 +138,7 @@ def calculate_scores(all_games, all_tipps, phase="Regular Season"):
     return scores, weekly_hits
 
 # --- APP UI ---
-st.markdown("<h1 class='main-title'>🏈 NFL TIPPSPIEL 2024/25</h1>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-title'>🏈 NFL TIPPSPIEL 2026/27</h1>", unsafe_allow_html=True)
 
 # Spieltag Auswahl
 c1, c2, c3 = st.columns([1, 2, 1])
@@ -185,42 +185,45 @@ with tab2:
     new_tipps = user_existing_tipps.copy()
 
     with st.form("tipp_form"):
-        for game in nfl_games:
-            st.markdown(f"<div class='game-card'>", unsafe_allow_html=True)
-            col_a, col_vs, col_b = st.columns([2, 1, 2])
-            
-            with col_a:
-                st.image(game['home_logo'], width=50)
-                st.write(f"**{game['home_team']}**")
-                if game['completed']:
-                    st.caption(f"Score: {game['home_score']}")
+        if not nfl_games:
+            st.info("Keine Spiele für diesen Spieltag gefunden.")
+        else:
+            for game in nfl_games:
+                st.markdown(f"<div class='game-card'>", unsafe_allow_html=True)
+                col_a, col_vs, col_b = st.columns([2, 1, 2])
+                
+                with col_a:
+                    st.image(game['home_logo'], width=50)
+                    st.write(f"**{game['home_team']}**")
+                    if game['completed']:
+                        st.caption(f"Score: {game['home_score']}")
 
-            with col_vs:
-                st.write("VS")
-                st.caption(game['status_detail'])
+                with col_vs:
+                    st.write("VS")
+                    st.caption(game['status_detail'])
 
-            with col_b:
-                st.image(game['away_logo'], width=50)
-                st.write(f"**{game['away_team']}**")
-                if game['completed']:
-                    st.caption(f"Score: {game['away_score']}")
+                with col_b:
+                    st.image(game['away_logo'], width=50)
+                    st.write(f"**{game['away_team']}**")
+                    if game['completed']:
+                        st.caption(f"Score: {game['away_score']}")
 
-            # Radio Button für Tipp
-            options = [game['home_abbr'], game['away_abbr']]
-            current_choice = user_existing_tipps.get(game['id'], game['home_abbr'])
-            idx = options.index(current_choice) if current_choice in options else 0
-            
-            selected = st.radio(
-                f"Dein Tipp für {game['home_team']} vs {game['away_team']}",
-                options,
-                index=idx,
-                key=f"radio_{active_user}_{game['id']}",
-                horizontal=True
-            )
-            new_tipps[game['id']] = selected
-            st.markdown("</div>", unsafe_allow_html=True)
+                # Radio Button für Tipp
+                options = [game['home_abbr'], game['away_abbr']]
+                current_choice = user_existing_tipps.get(game['id'], game['home_abbr'])
+                idx = options.index(current_choice) if current_choice in options else 0
+                
+                selected = st.radio(
+                    f"Dein Tipp für {game['home_team']} vs {game['away_team']}",
+                    options,
+                    index=idx,
+                    key=f"radio_{active_user}_{game['id']}",
+                    horizontal=True
+                )
+                new_tipps[game['id']] = selected
+                st.markdown("</div>", unsafe_allow_html=True)
 
-        if st.form_submit_button("🏈 Tipps für Woche speichern"):
-            save_user_tipp(active_user, new_tipps)
-            st.success("Deine Tipps wurden sicher im Google Sheet gespeichert!")
-            st.rerun()
+            if st.form_submit_button("🏈 Tipps für Woche speichern"):
+                save_user_tipp(active_user, new_tipps)
+                st.success("Deine Tipps wurden sicher im Google Sheet gespeichert!")
+                st.rerun()
