@@ -105,10 +105,42 @@ BONUS_QUESTIONS = [
     "8) Team mit den meisten Punkten der Saison"
 ]
 
-# --- DATENBANK VERWALTUNG (LOCAL + AUTOMATISCHES GITHUB BACKUP) ---
+# --- DATENBANK VERWALTUNG (VOLLSYNCHRONISIERT MIT GITHUB) ---
 DB_FILE = "nfl_tippspiel_data.json"
 
+def fetch_from_github():
+    """Holt die aktuellste JSON direkt von GitHub"""
+    try:
+        token = st.secrets.get("GITHUB_TOKEN")
+        repo = st.secrets.get("GITHUB_REPO")
+        if not token or not repo:
+            return None
+        url = f"https://api.github.com/repos/{repo}/contents/{DB_FILE}"
+        headers = {"Authorization": f"token {token}"}
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            content_b64 = res.json().get("content", "")
+            content_json = base64.b64decode(content_b64).decode("utf-8")
+            return json.loads(content_json)
+    except Exception:
+        pass
+    return None
+
 def load_db():
+    # 1. Versuch: Von GitHub laden
+    gh_data = fetch_from_github()
+    if gh_data:
+        # Lokale Datei direkt aktualisieren
+        with open(DB_FILE, "w") as f:
+            json.dump(gh_data, f, indent=4)
+        return (
+            gh_data.get("tipps_db", {u: {} for u in MITSPIELER}),
+            gh_data.get("bonus_db", {u: {} for u in MITSPIELER}),
+            gh_data.get("bonus_results", {}),
+            gh_data.get("joker_db", {u: {} for u in MITSPIELER})
+        )
+    
+    # 2. Fallback: Von lokaler Datei laden
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r") as f:
@@ -121,6 +153,7 @@ def load_db():
                 )
         except Exception:
             pass
+            
     return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}
 
 def sync_to_github(data_dict):
@@ -134,7 +167,6 @@ def sync_to_github(data_dict):
         url = f"https://api.github.com/repos/{repo}/contents/{DB_FILE}"
         headers = {"Authorization": f"token {token}"}
         
-        # SHA des bestehenden Files abfragen
         get_res = requests.get(url, headers=headers)
         sha = get_res.json().get("sha") if get_res.status_code == 200 else None
         
@@ -161,11 +193,9 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db):
         "bonus_results": bonus_results,
         "joker_db": joker_db
     }
-    # 1. Lokal speichern
     with open(DB_FILE, "w") as f:
         json.dump(data, f, indent=4)
         
-    # 2. Automatischer Sync zu GitHub
     sync_to_github(data)
     return True
 
@@ -469,15 +499,16 @@ with tab4:
                     st.write(f"**{game['away_team']}**")
 
                 options = [game['home_abbr'], game['away_abbr']]
-                current_choice = user_existing_tipps.get(game['id'], game['home_abbr'])
-                idx = options.index(current_choice) if current_choice in options else 0
+                current_choice = user_existing_tipps.get(game['id'])
+                idx = options.index(current_choice) if current_choice in options else None
                 
                 selected = st.radio(
                     f"Tipp: {game['home_team']} vs {game['away_team']}",
                     options, index=idx, key=f"r_{active_user}_{game['id']}", horizontal=True,
                     disabled=is_after_thursday_noon
                 )
-                new_tipps[game['id']] = selected
+                if selected:
+                    new_tipps[game['id']] = selected
                 st.markdown("</div>", unsafe_allow_html=True)
 
             if not is_after_thursday_noon:
