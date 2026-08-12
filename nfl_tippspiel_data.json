@@ -65,5 +65,24 @@
             "1": "401872923",
             "2": null
         }
+    },
+    "comments_db": {
+        "1": [
+            {
+                "user": "P\u00e4du",
+                "text": "Ronny danke f\u00fcrs kochen! \ud83c\udf73\ud83d\udd25",
+                "time": "21:05"
+            },
+            {
+                "user": "Ronny",
+                "text": "Immer gerne, daf\u00fcr holst du am Sonntag 0 Punkte! \ud83d\ude1c",
+                "time": "21:08"
+            },
+            {
+                "user": "Bauzzen",
+                "text": "Foug TerraGrossa!",
+                "time": "19:07"
+            }
+        ]
     }
 }
