@@ -3,6 +3,7 @@ import requests
 import json
 from datetime import datetime
 import pandas as pd
+import gspread
 from streamlit_gsheets import GSheetsConnection
 
 # --- SEITEN-KONFIGURATION & STADION-FLUTLICHT DESIGN ---
@@ -104,7 +105,7 @@ BONUS_QUESTIONS = [
     "8) Team mit den meisten Punkten der Saison"
 ]
 
-# --- GOOGLE SHEETS VERBINDUNG ---
+# --- GOOGLE SHEETS VERBINDUNG (ROBUST & STABIL) ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_db():
@@ -131,22 +132,46 @@ def load_db():
         return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}
 
 def save_db(tipps_db, bonus_db, bonus_results, joker_db):
-    rows = []
-    for u in MITSPIELER:
+    try:
+        # Nutzung von Direct GSpread Update für volle Schreibrechte
+        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        gc = gspread.public_credentials()
+        sh = gc.open_by_url(sheet_url)
+        worksheet = sh.get_worksheet(0)
+        
+        rows = [["user", "tipps_json", "bonus_json", "joker_json"]]
+        for u in MITSPIELER:
+            rows.append([
+                u, 
+                json.dumps(tipps_db.get(u, {})),
+                json.dumps(bonus_db.get(u, {})),
+                json.dumps(joker_db.get(u, {}))
+            ])
+        rows.append([
+            "ADMIN_BONUS_RESULTS",
+            "{}",
+            json.dumps(bonus_results),
+            "{}"
+        ])
+        worksheet.update('A1', rows)
+    except Exception as e:
+        # Fallback falls gspread blockiert
+        rows = []
+        for u in MITSPIELER:
+            rows.append({
+                "user": u, 
+                "tipps_json": json.dumps(tipps_db.get(u, {})),
+                "bonus_json": json.dumps(bonus_db.get(u, {})),
+                "joker_json": json.dumps(joker_db.get(u, {}))
+            })
         rows.append({
-            "user": u, 
-            "tipps_json": json.dumps(tipps_db.get(u, {})),
-            "bonus_json": json.dumps(bonus_db.get(u, {})),
-            "joker_json": json.dumps(joker_db.get(u, {}))
+            "user": "ADMIN_BONUS_RESULTS",
+            "tipps_json": "{}",
+            "bonus_json": json.dumps(bonus_results),
+            "joker_json": "{}"
         })
-    rows.append({
-        "user": "ADMIN_BONUS_RESULTS",
-        "tipps_json": "{}",
-        "bonus_json": json.dumps(bonus_results),
-        "joker_json": "{}"
-    })
-    new_df = pd.DataFrame(rows)
-    conn.update(data=new_df)
+        new_df = pd.DataFrame(rows)
+        conn.update(data=new_df)
 
 tipps_db, bonus_db, bonus_results, joker_db = load_db()
 
@@ -258,7 +283,7 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: TABLEARISCHE UBERSICHT MIT REAL TEAM-FARBEN ---
+# --- TAB 2: TABLEARISCHE UBERSICHT ---
 with tab2:
     st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
     
@@ -267,20 +292,14 @@ with tab2:
     def style_team_colors(val):
         clean_val = str(val).replace(" 🃏 2x", "").strip()
         bg_color = TEAM_COLORS.get(clean_val, "#334155")
-        
-        # Textfarbe weiss (bei Gelb wie Pittsburgh schwarz)
         text_color = "#0f172a" if clean_val in ["PIT", "NO"] else "#ffffff"
-        
         style = f'background-color: {bg_color}; color: {text_color}; font-weight: bold; border-radius: 6px;'
-        
         if "🃏" in str(val):
             style += ' border: 2.5px solid #f59e0b; box-shadow: 0 0 8px #f59e0b;'
-            
         return style
 
     if show_demo:
         st.markdown("<div class='demo-banner'>⚡ VORSCHAU: Tipp-Übersicht in den echten Team-Farben! ⚡</div>", unsafe_allow_html=True)
-        
         demo_games = [
             {"Matchup": "Chiefs (KC) vs. Eagles (PHI)", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 2x", "Domi": "PHI 🃏 2x", "Pädu": "KC"},
             {"Matchup": "49ers (SF) vs. Cowboys (DAL)", "Andy": "SF", "Ronny": "SF", "Bauzzen": "SF", "Bössi": "DAL", "Jerome": "SF", "Mäni": "DAL", "Domi": "SF", "Pädu": "SF"},
@@ -288,13 +307,10 @@ with tab2:
             {"Matchup": "Bills (BUF) vs. Dolphins (MIA)", "Andy": "BUF", "Ronny": "BUF", "Bauzzen": "MIA", "Bössi": "BUF", "Jerome": "BUF", "Mäni": "BUF", "Domi": "MIA", "Pädu": "BUF"},
             {"Matchup": "Ravens (BAL) vs. Bengals (CIN)", "Andy": "BAL", "Ronny": "BAL", "Bauzzen": "BAL", "Bössi": "CIN", "Jerome": "BAL", "Mäni": "CIN", "Domi": "BAL", "Pädu": "BAL"}
         ]
-        
         df_demo = pd.DataFrame(demo_games)
         styled_df = df_demo.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
-
         st.dataframe(styled_df, use_container_width=True, height=280)
         st.caption("🎨 **Farben:** Offizielle NFL Team-Hauptfarben | 🟡 **Goldene Umrandung:** Joker-Einsatz (2x)")
-    
     elif not is_after_thursday_noon:
         st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
     else:
@@ -310,7 +326,6 @@ with tab2:
                         t += " 🃏 2x"
                     row[u] = t
                 table_data.append(row)
-            
             df_table = pd.DataFrame(table_data)
             styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
             st.dataframe(styled_real_df, use_container_width=True)
@@ -318,7 +333,6 @@ with tab2:
 # --- TAB 3: BONUSTIPPS ---
 with tab3:
     st.subheader("🎯 Saison-Bonustipps (Je 15 Punkte)")
-    
     deadline = datetime(2026, 9, 2, 23, 59, 59)
     can_edit_bonus = datetime.now() <= deadline
     
@@ -333,13 +347,11 @@ with tab3:
     if pass_b_login == PASSWORDS.get(user_b_login):
         u_bonus = bonus_db.get(user_b_login, {})
         new_b = {}
-        
         with st.form("bonus_form"):
             for idx, q in enumerate(BONUS_QUESTIONS):
                 q_key = f"q_{idx}"
                 current_val = u_bonus.get(q_key, "")
                 new_b[q_key] = st.text_input(q, value=current_val, disabled=not can_edit_bonus)
-            
             if can_edit_bonus and st.form_submit_button("🎯 Bonustipps speichern"):
                 bonus_db[user_b_login] = new_b
                 save_db(tipps_db, bonus_db, bonus_results, joker_db)
@@ -365,7 +377,6 @@ with tab3:
 # --- TAB 4: NORMALES TIPPEN ---
 with tab4:
     st.subheader("Login & Spieltag tippen")
-    
     if is_after_thursday_noon:
         st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
     else:
