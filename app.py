@@ -131,6 +131,7 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db):
     }
     with open(DB_FILE, "w") as f:
         json.dump(data, f, indent=4)
+    return True
 
 tipps_db, bonus_db, bonus_results, joker_db = load_db()
 
@@ -323,9 +324,9 @@ with tab3:
             
             if can_edit_bonus and st.form_submit_button("🎯 Bonustipps speichern"):
                 bonus_db[user_b_login] = new_b
-                save_db(tipps_db, bonus_db, bonus_results, joker_db)
-                st.success("Bonustipps erfolgreich gespeichert!")
-                st.rerun()
+                if save_db(tipps_db, bonus_db, bonus_results, joker_db):
+                    st.success(f"✅ Bonustipps für {user_b_login} wurden ERFOLGREICH gespeichert!")
+                    st.toast("Bonustipps gespeichert!", icon="💾")
     elif pass_b_login != "":
         st.error("Falsches Passwort.")
 
@@ -339,9 +340,8 @@ with tab3:
                     admin_new_res[q_key] = st.text_input(f"Lösung: {q}", value=bonus_results.get(q_key, ""))
                 if st.form_submit_button("Musterlösung speichern & Punkte verteilen"):
                     bonus_results = admin_new_res
-                    save_db(tipps_db, bonus_db, bonus_results, joker_db)
-                    st.success("Musterlösung gespeichert! Punkte wurden aktualisiert.")
-                    st.rerun()
+                    if save_db(tipps_db, bonus_db, bonus_results, joker_db):
+                        st.success("✅ Musterlösung erfolgreich gespeichert! Punkte wurden neu berechnet.")
 
 # --- TAB 4: NORMALES TIPPEN ---
 with tab4:
@@ -416,8 +416,15 @@ with tab4:
                             joker_db[active_user] = {}
                         joker_db[active_user][str(woche)] = selected_joker_game
                     
-                    save_db(tipps_db, bonus_db, bonus_results, joker_db)
-                    st.success("Tipps und Joker-Einstellung gespeichert!")
-                    st.rerun()
+                    if save_db(tipps_db, bonus_db, bonus_results, joker_db):
+                        st.success(f"✅ **ERFOLGREICH GESPEICHERT!** Alle Tipps für {active_user} (Woche {woche}) wurden sicher eingetragen.")
+                        st.toast("Tipps erfolgreich gespeichert!", icon="🏈")
+                        
+                        # Kleine Live-Zusammenfassung der abgegebenen Tipps
+                        with st.expander("👁️ Deine soeben gespeicherten Tipps anzeigen", expanded=True):
+                            for g in nfl_games:
+                                t_choice = new_tipps.get(g['id'], "-")
+                                is_joker = " 🃏 (2x Joker)" if selected_joker_game == g['id'] else ""
+                                st.write(f"• **{g['matchup']}:** {t_choice}{is_joker}")
             else:
                 st.warning("Das Speichern ist nicht mehr möglich, da die Frist abgelaufen ist.")
