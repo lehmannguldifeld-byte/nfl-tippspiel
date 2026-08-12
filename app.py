@@ -4,46 +4,66 @@ import json
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# --- SEITEN-KONFIGURATION & FANCY NFL STYLING ---
+# --- SEITEN-KONFIGURATION & HELLER STADIUM-LOOK ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
 
 st.markdown("""
     <style>
-    /* Dark NFL-Theme */
+    /* Hintergrund-GIF & Helles Theme */
     .stApp {
-        background-color: #0b0e14;
-        color: #f1f5f9;
+        background: linear-gradient(rgba(241, 245, 249, 0.88), rgba(226, 232, 240, 0.92)), 
+                    url('https://images.unsplash.com/photo-1566577739112-5180d4bf9390?auto=format&fit=crop&w=1920&q=80');
+        background-size: cover;
+        background-attachment: fixed;
+        color: #0f172a;
     }
+    
     .main-title {
         text-align: center;
         font-size: 2.8rem;
-        font-weight: 800;
-        color: #00d4ff;
-        text-shadow: 0 0 12px rgba(0,212,255,0.4);
+        font-weight: 900;
+        color: #1e3a8a;
+        text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
         margin-bottom: 20px;
     }
+    
+    /* Helle Leaderboard Karten */
     .leaderboard-card {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border: 1px solid #334155;
+        background: #ffffff;
+        border-left: 6px solid #2563eb;
         border-radius: 12px;
-        padding: 15px 20px;
-        margin-bottom: 10px;
+        padding: 16px 24px;
+        margin-bottom: 12px;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
+    
+    /* Helle Spiel-Karten */
     .game-card {
-        background-color: #1a2332;
+        background-color: #ffffff;
         border-radius: 12px;
-        padding: 15px;
-        border: 1px solid #2d3748;
+        padding: 18px;
+        border: 1px solid #cbd5e1;
         margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- DIE 8 MITSPIELER ---
-MITSPIELER = ["Andy", "Ronny", "Bauzzen", "Bössi", "Jerome", "Mäni", "Domi", "Pädu"]
+# --- DIE 8 MITSPIELER & IHRE PASSWÖRTER ---
+PASSWORDS = {
+    "Andy": "andy2026",
+    "Ronny": "ronny2026",
+    "Bauzzen": "bauzzen2026",
+    "Bössi": "boessi2026",
+    "Jerome": "jerome2026",
+    "Mäni": "maeni2026",
+    "Domi": "domi2026",
+    "Pädu": "paedu2026"
+}
+MITSPIELER = list(PASSWORDS.keys())
 
 # --- GOOGLE SHEETS VERBINDUNG ---
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -76,7 +96,7 @@ def save_user_tipp(user, user_tipps):
     new_df = pd.DataFrame(rows)
     conn.update(data=new_df)
 
-# --- ESPN API: LIVE SPIELE & RESULTATE DER NEUEN SAISON ---
+# --- ESPN API: LIVE SPIELE & RESULTATE ---
 @st.cache_data(ttl=300)
 def get_nfl_games(week_num=1, season_type=2):
     current_year = datetime.now().year
@@ -130,7 +150,6 @@ def calculate_scores(all_games, all_tipps, phase="Regular Season"):
                     scores[u] += 5 * multiplier
                     weekly_hits[u] += 1
 
-    # Bonus: +10 Punkte für 6 Richtige an einem Spieltag
     for u in MITSPIELER:
         if weekly_hits[u] >= 6:
             scores[u] += 10
@@ -153,7 +172,7 @@ nfl_games = get_nfl_games(week_num=woche, season_type=2)
 all_tipps = load_all_tipps()
 scores, hits = calculate_scores(nfl_games, all_tipps, phase=phase_choice)
 
-tab1, tab2 = st.tabs(["📊 Rangliste", "✏️ Tipps abgeben"])
+tab1, tab2 = st.tabs(["📊 Rangliste", "🔒 Tipps abgeben (Login)"])
 
 # --- TAB 1: RANGLISTE ---
 with tab1:
@@ -167,63 +186,76 @@ with tab1:
         st.markdown(f"""
             <div class='leaderboard-card'>
                 <div>
-                    <span style='font-size: 1.4rem; font-weight: bold;'>{badge} {user}</span>
-                    <span style='color: #22c55e; font-weight: bold; margin-left: 10px;'>{fire}</span>
+                    <span style='font-size: 1.3rem; font-weight: bold; color: #1e293b;'>{badge} {user}</span>
+                    <span style='color: #16a34a; font-weight: bold; margin-left: 10px;'>{fire}</span>
                 </div>
-                <div style='font-size: 1.6rem; font-weight: 800; color: #00d4ff;'>
-                    {score} <span style='font-size: 0.9rem; color: #94a3b8;'>Pkt</span>
+                <div style='font-size: 1.5rem; font-weight: 800; color: #1e3a8a;'>
+                    {score} <span style='font-size: 0.9rem; color: #64748b;'>Pkt</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: TIPPS ABGEBEN ---
+# --- TAB 2: TIPPS ABGEBEN (MIT PASSWORT-SCHUTZ) ---
 with tab2:
-    st.subheader("Wähle deinen Namen & tippe die Sieger")
-    active_user = st.selectbox("Wer bist du?", MITSPIELER)
+    st.subheader("Login & Tippabgabe")
     
-    user_existing_tipps = all_tipps.get(active_user, {})
-    new_tipps = user_existing_tipps.copy()
+    col_user, col_pass = st.columns(2)
+    with col_user:
+        active_user = st.selectbox("Wer bist du?", MITSPIELER)
+    with col_pass:
+        user_input_pass = st.text_input("Dein Passwort", type="password")
 
-    with st.form("tipp_form"):
-        if not nfl_games:
-            st.info("Keine Spiele für diesen Spieltag gefunden.")
-        else:
-            for game in nfl_games:
-                st.markdown(f"<div class='game-card'>", unsafe_allow_html=True)
-                col_a, col_vs, col_b = st.columns([2, 1, 2])
-                
-                with col_a:
-                    st.image(game['home_logo'], width=50)
-                    st.write(f"**{game['home_team']}**")
-                    if game['completed']:
-                        st.caption(f"Score: {game['home_score']}")
+    # Überprüfung des Passworts
+    if user_input_pass == PASSWORDS.get(active_user):
+        st.success(f"Willkommen zurück, {active_user}! Du kannst jetzt deine Tipps eintragen.")
+        
+        user_existing_tipps = all_tipps.get(active_user, {})
+        new_tipps = user_existing_tipps.copy()
 
-                with col_vs:
-                    st.write("VS")
-                    st.caption(game['status_detail'])
+        with st.form("tipp_form"):
+            if not nfl_games:
+                st.info("Keine Spiele für diesen Spieltag gefunden.")
+            else:
+                for game in nfl_games:
+                    st.markdown("<div class='game-card'>", unsafe_allow_html=True)
+                    col_a, col_vs, col_b = st.columns([2, 1, 2])
+                    
+                    with col_a:
+                        st.image(game['home_logo'], width=50)
+                        st.write(f"**{game['home_team']}**")
+                        if game['completed']:
+                            st.caption(f"Score: {game['home_score']}")
 
-                with col_b:
-                    st.image(game['away_logo'], width=50)
-                    st.write(f"**{game['away_team']}**")
-                    if game['completed']:
-                        st.caption(f"Score: {game['away_score']}")
+                    with col_vs:
+                        st.write("VS")
+                        st.caption(game['status_detail'])
 
-                # Radio Button für Tipp
-                options = [game['home_abbr'], game['away_abbr']]
-                current_choice = user_existing_tipps.get(game['id'], game['home_abbr'])
-                idx = options.index(current_choice) if current_choice in options else 0
-                
-                selected = st.radio(
-                    f"Dein Tipp für {game['home_team']} vs {game['away_team']}",
-                    options,
-                    index=idx,
-                    key=f"radio_{active_user}_{game['id']}",
-                    horizontal=True
-                )
-                new_tipps[game['id']] = selected
-                st.markdown("</div>", unsafe_allow_html=True)
+                    with col_b:
+                        st.image(game['away_logo'], width=50)
+                        st.write(f"**{game['away_team']}**")
+                        if game['completed']:
+                            st.caption(f"Score: {game['away_score']}")
 
-            if st.form_submit_button("🏈 Tipps für Woche speichern"):
-                save_user_tipp(active_user, new_tipps)
-                st.success("Deine Tipps wurden sicher im Google Sheet gespeichert!")
-                st.rerun()
+                    # Radio Button für Tipp
+                    options = [game['home_abbr'], game['away_abbr']]
+                    current_choice = user_existing_tipps.get(game['id'], game['home_abbr'])
+                    idx = options.index(current_choice) if current_choice in options else 0
+                    
+                    selected = st.radio(
+                        f"Tipp für {game['home_team']} vs {game['away_team']}",
+                        options,
+                        index=idx,
+                        key=f"radio_{active_user}_{game['id']}",
+                        horizontal=True
+                    )
+                    new_tipps[game['id']] = selected
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                if st.form_submit_button("🏈 Tipps speichern"):
+                    save_user_tipp(active_user, new_tipps)
+                    st.success("Deine Tipps wurden sicher gespeichert!")
+                    st.rerun()
+    elif user_input_pass != "":
+        st.error("Falsches Passwort! Bitte versuche es erneut.")
+    else:
+        st.info("Bitte gib dein Passwort ein, um deine Tipps freizuschalten.")
