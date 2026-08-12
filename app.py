@@ -3,8 +3,7 @@ import requests
 import json
 from datetime import datetime
 import pandas as pd
-import gspread
-from streamlit_gsheets import GSheetsConnection
+import os
 
 # --- SEITEN-KONFIGURATION & STADION-FLUTLICHT DESIGN ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
@@ -105,73 +104,33 @@ BONUS_QUESTIONS = [
     "8) Team mit den meisten Punkten der Saison"
 ]
 
-# --- GOOGLE SHEETS VERBINDUNG (ROBUST & STABIL) ---
-conn = st.connection("gsheets", type=GSheetsConnection)
+# --- SICHERE SPEICHERUNG (ROBUST & OHNE API-LOCKED ERRORS) ---
+DB_FILE = "nfl_tippspiel_data.json"
 
 def load_db():
-    try:
-        df = conn.read(ttl=0)
-        tipps_db = {}
-        bonus_db = {}
-        bonus_results = {}
-        joker_db = {}
-        for idx, row in df.iterrows():
-            u = str(row['user'])
-            if u in MITSPIELER:
-                try: tipps_db[u] = json.loads(str(row['tipps_json']))
-                except: tipps_db[u] = {}
-                try: bonus_db[u] = json.loads(str(row['bonus_json']))
-                except: bonus_db[u] = {}
-                try: joker_db[u] = json.loads(str(row.get('joker_json', '{}')))
-                except: joker_db[u] = {}
-            elif u == "ADMIN_BONUS_RESULTS":
-                try: bonus_results = json.loads(str(row['bonus_json']))
-                except: bonus_results = {}
-        return tipps_db, bonus_db, bonus_results, joker_db
-    except Exception as e:
-        return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r") as f:
+                data = json.load(f)
+                return (
+                    data.get("tipps_db", {u: {} for u in MITSPIELER}),
+                    data.get("bonus_db", {u: {} for u in MITSPIELER}),
+                    data.get("bonus_results", {}),
+                    data.get("joker_db", {u: {} for u in MITSPIELER})
+                )
+        except Exception:
+            pass
+    return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}
 
 def save_db(tipps_db, bonus_db, bonus_results, joker_db):
-    try:
-        # Nutzung von Direct GSpread Update für volle Schreibrechte
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        gc = gspread.public_credentials()
-        sh = gc.open_by_url(sheet_url)
-        worksheet = sh.get_worksheet(0)
-        
-        rows = [["user", "tipps_json", "bonus_json", "joker_json"]]
-        for u in MITSPIELER:
-            rows.append([
-                u, 
-                json.dumps(tipps_db.get(u, {})),
-                json.dumps(bonus_db.get(u, {})),
-                json.dumps(joker_db.get(u, {}))
-            ])
-        rows.append([
-            "ADMIN_BONUS_RESULTS",
-            "{}",
-            json.dumps(bonus_results),
-            "{}"
-        ])
-        worksheet.update('A1', rows)
-    except Exception as e:
-        # Fallback falls gspread blockiert
-        rows = []
-        for u in MITSPIELER:
-            rows.append({
-                "user": u, 
-                "tipps_json": json.dumps(tipps_db.get(u, {})),
-                "bonus_json": json.dumps(bonus_db.get(u, {})),
-                "joker_json": json.dumps(joker_db.get(u, {}))
-            })
-        rows.append({
-            "user": "ADMIN_BONUS_RESULTS",
-            "tipps_json": "{}",
-            "bonus_json": json.dumps(bonus_results),
-            "joker_json": "{}"
-        })
-        new_df = pd.DataFrame(rows)
-        conn.update(data=new_df)
+    data = {
+        "tipps_db": tipps_db,
+        "bonus_db": bonus_db,
+        "bonus_results": bonus_results,
+        "joker_db": joker_db
+    }
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 tipps_db, bonus_db, bonus_results, joker_db = load_db()
 
@@ -180,36 +139,38 @@ tipps_db, bonus_db, bonus_results, joker_db = load_db()
 def get_nfl_games(week_num=1, season_type=2):
     current_year = datetime.now().year
     url = f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={current_year}&week={week_num}&seasontype={season_type}"
-    res = requests.get(url).json()
-    
-    games = []
-    events = res.get('events', [])
-    for ev in events:
-        comp = ev['competitions'][0]
-        t1 = comp['competitors'][0]
-        t2 = comp['competitors'][1]
-        
-        status = comp['status']['type']['completed']
-        winner_id = None
-        if status:
-            winner_id = t1['team']['abbreviation'] if t1.get('winner') else t2['team']['abbreviation']
+    try:
+        res = requests.get(url).json()
+        games = []
+        events = res.get('events', [])
+        for ev in events:
+            comp = ev['competitions'][0]
+            t1 = comp['competitors'][0]
+            t2 = comp['competitors'][1]
+            
+            status = comp['status']['type']['completed']
+            winner_id = None
+            if status:
+                winner_id = t1['team']['abbreviation'] if t1.get('winner') else t2['team']['abbreviation']
 
-        games.append({
-            'id': str(ev['id']),
-            'matchup': f"{t1['team']['shortDisplayName']} vs {t2['team']['shortDisplayName']}",
-            'home_team': t1['team']['shortDisplayName'],
-            'home_abbr': t1['team']['abbreviation'],
-            'home_logo': t1['team']['logo'],
-            'home_score': t1.get('score', '0'),
-            'away_team': t2['team']['shortDisplayName'],
-            'away_abbr': t2['team']['abbreviation'],
-            'away_logo': t2['team']['logo'],
-            'away_score': t2.get('score', '0'),
-            'completed': status,
-            'winner_abbr': winner_id,
-            'status_detail': comp['status']['type']['shortDetail']
-        })
-    return games
+            games.append({
+                'id': str(ev['id']),
+                'matchup': f"{t1['team']['shortDisplayName']} vs {t2['team']['shortDisplayName']}",
+                'home_team': t1['team']['shortDisplayName'],
+                'home_abbr': t1['team']['abbreviation'],
+                'home_logo': t1['team']['logo'],
+                'home_score': t1.get('score', '0'),
+                'away_team': t2['team']['shortDisplayName'],
+                'away_abbr': t2['team']['abbreviation'],
+                'away_logo': t2['team']['logo'],
+                'away_score': t2.get('score', '0'),
+                'completed': status,
+                'winner_abbr': winner_id,
+                'status_detail': comp['status']['type']['shortDetail']
+            })
+        return games
+    except Exception:
+        return []
 
 # --- PUNKTE LOGIK ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1):
@@ -283,7 +244,7 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: TABLEARISCHE UBERSICHT ---
+# --- TAB 2: TABLEARISCHE UBERSICHT MIT REAL TEAM-FARBEN ---
 with tab2:
     st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
     
@@ -300,6 +261,7 @@ with tab2:
 
     if show_demo:
         st.markdown("<div class='demo-banner'>⚡ VORSCHAU: Tipp-Übersicht in den echten Team-Farben! ⚡</div>", unsafe_allow_html=True)
+        
         demo_games = [
             {"Matchup": "Chiefs (KC) vs. Eagles (PHI)", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 2x", "Domi": "PHI 🃏 2x", "Pädu": "KC"},
             {"Matchup": "49ers (SF) vs. Cowboys (DAL)", "Andy": "SF", "Ronny": "SF", "Bauzzen": "SF", "Bössi": "DAL", "Jerome": "SF", "Mäni": "DAL", "Domi": "SF", "Pädu": "SF"},
@@ -307,10 +269,13 @@ with tab2:
             {"Matchup": "Bills (BUF) vs. Dolphins (MIA)", "Andy": "BUF", "Ronny": "BUF", "Bauzzen": "MIA", "Bössi": "BUF", "Jerome": "BUF", "Mäni": "BUF", "Domi": "MIA", "Pädu": "BUF"},
             {"Matchup": "Ravens (BAL) vs. Bengals (CIN)", "Andy": "BAL", "Ronny": "BAL", "Bauzzen": "BAL", "Bössi": "CIN", "Jerome": "BAL", "Mäni": "CIN", "Domi": "BAL", "Pädu": "BAL"}
         ]
+        
         df_demo = pd.DataFrame(demo_games)
         styled_df = df_demo.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
-        st.dataframe(styled_df, use_container_width=True, height=280)
+
+        st.dataframe(styled_df, width="stretch", height=280)
         st.caption("🎨 **Farben:** Offizielle NFL Team-Hauptfarben | 🟡 **Goldene Umrandung:** Joker-Einsatz (2x)")
+    
     elif not is_after_thursday_noon:
         st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
     else:
@@ -326,13 +291,15 @@ with tab2:
                         t += " 🃏 2x"
                     row[u] = t
                 table_data.append(row)
+            
             df_table = pd.DataFrame(table_data)
             styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
-            st.dataframe(styled_real_df, use_container_width=True)
+            st.dataframe(styled_real_df, width="stretch")
 
 # --- TAB 3: BONUSTIPPS ---
 with tab3:
     st.subheader("🎯 Saison-Bonustipps (Je 15 Punkte)")
+    
     deadline = datetime(2026, 9, 2, 23, 59, 59)
     can_edit_bonus = datetime.now() <= deadline
     
@@ -347,11 +314,13 @@ with tab3:
     if pass_b_login == PASSWORDS.get(user_b_login):
         u_bonus = bonus_db.get(user_b_login, {})
         new_b = {}
+        
         with st.form("bonus_form"):
             for idx, q in enumerate(BONUS_QUESTIONS):
                 q_key = f"q_{idx}"
                 current_val = u_bonus.get(q_key, "")
                 new_b[q_key] = st.text_input(q, value=current_val, disabled=not can_edit_bonus)
+            
             if can_edit_bonus and st.form_submit_button("🎯 Bonustipps speichern"):
                 bonus_db[user_b_login] = new_b
                 save_db(tipps_db, bonus_db, bonus_results, joker_db)
@@ -377,6 +346,7 @@ with tab3:
 # --- TAB 4: NORMALES TIPPEN ---
 with tab4:
     st.subheader("Login & Spieltag tippen")
+    
     if is_after_thursday_noon:
         st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
     else:
