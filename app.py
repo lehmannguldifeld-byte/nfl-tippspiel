@@ -61,7 +61,6 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
 
-    /* FANCY SCHEDULE CARDS */
     .schedule-card {
         background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
         border: 1px solid rgba(56, 189, 248, 0.3);
@@ -70,11 +69,6 @@ st.markdown("""
         margin-bottom: 16px;
         box-shadow: 0 8px 25px rgba(0,0,0,0.4);
         backdrop-filter: blur(6px);
-        transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-    .schedule-card:hover {
-        border-color: #38bdf8;
-        transform: translateY(-2px);
     }
     .team-box {
         display: flex;
@@ -122,6 +116,13 @@ st.markdown("""
         letter-spacing: 1px;
         margin-bottom: 20px;
         box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
+    }
+    .chat-bubble {
+        background: rgba(30, 41, 59, 0.85);
+        border-left: 4px solid #38bdf8;
+        padding: 10px 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -173,7 +174,8 @@ def load_db():
             gh_data.get("tipps_db", {u: {} for u in MITSPIELER}),
             gh_data.get("bonus_db", {u: {} for u in MITSPIELER}),
             gh_data.get("bonus_results", {}),
-            gh_data.get("joker_db", {u: {} for u in MITSPIELER})
+            gh_data.get("joker_db", {u: {} for u in MITSPIELER}),
+            gh_data.get("comments_db", {})
         )
     
     if os.path.exists(DB_FILE):
@@ -184,12 +186,13 @@ def load_db():
                     data.get("tipps_db", {u: {} for u in MITSPIELER}),
                     data.get("bonus_db", {u: {} for u in MITSPIELER}),
                     data.get("bonus_results", {}),
-                    data.get("joker_db", {u: {} for u in MITSPIELER})
+                    data.get("joker_db", {u: {} for u in MITSPIELER}),
+                    data.get("comments_db", {})
                 )
         except Exception:
             pass
             
-    return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}
+    return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}, {}
 
 def sync_to_github(data_dict):
     try:
@@ -197,10 +200,8 @@ def sync_to_github(data_dict):
         repo = st.secrets.get("GITHUB_REPO")
         if not token or not repo:
             return False
-        
         url = f"https://api.github.com/repos/{repo}/contents/{DB_FILE}"
         headers = {"Authorization": f"token {token}"}
-        
         get_res = requests.get(url, headers=headers)
         sha = get_res.json().get("sha") if get_res.status_code == 200 else None
         
@@ -220,20 +221,20 @@ def sync_to_github(data_dict):
     except Exception:
         return False
 
-def save_db(tipps_db, bonus_db, bonus_results, joker_db):
+def save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db):
     data = {
         "tipps_db": tipps_db,
         "bonus_db": bonus_db,
         "bonus_results": bonus_results,
-        "joker_db": joker_db
+        "joker_db": joker_db,
+        "comments_db": comments_db
     }
     with open(DB_FILE, "w") as f:
         json.dump(data, f, indent=4)
-        
     sync_to_github(data)
     return True
 
-tipps_db, bonus_db, bonus_results, joker_db = load_db()
+tipps_db, bonus_db, bonus_results, joker_db, comments_db = load_db()
 
 def get_current_nfl_week():
     now = datetime.now()
@@ -259,7 +260,6 @@ def get_nfl_games(week_num=1, season_type=2):
             comp = ev['competitions'][0]
             t1 = comp['competitors'][0]
             t2 = comp['competitors'][1]
-            
             status = comp['status']['type']['completed']
             winner_id = None
             if status:
@@ -284,7 +284,7 @@ def get_nfl_games(week_num=1, season_type=2):
     except Exception:
         return []
 
-# --- PUNKTE LOGIK ---
+# --- PUNKTE LOGIK & HALL OF FAME STATS ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1):
     scores = {u: 0 for u in MITSPIELER}
     weekly_hits = {u: 0 for u in MITSPIELER}
@@ -333,11 +333,19 @@ if woche == 1:
 else:
     is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Rangliste", "📋 Tipp-Übersicht (Woche)", "🗓️ Spielplan & Scores", "🎯 Bonustipps", "🔒 Tippen (Login)"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "📊 Leaderboard", 
+    "📈 Saisonverlauf", 
+    "⚔️ Head-to-Head & Trash Talk", 
+    "📋 Tipp-Übersicht", 
+    "🗓️ Spielplan & Scores", 
+    "🎯 Bonustipps", 
+    "🔒 Tippen (Login)"
+])
 
-# --- TAB 1: RANGLISTE ---
+# --- TAB 1: RANGLISTE & HALL OF FAME BADGES ---
 with tab1:
-    st.subheader(f"Leaderboard — Woche {woche}")
+    st.subheader(f"Gesamtwertung — Woche {woche}")
     for rank, (user, score) in enumerate(sorted_scores, 1):
         badge = "🥇" if rank == 1 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
         fire = " 🔥 ON FIRE (+10 Bonus!)" if hits[user] >= 6 else ""
@@ -356,8 +364,76 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: TABLEARISCHE UBERSICHT ---
+# --- TAB 2: INTERAKTIVES RENNEN UM DIE KRONE (SAISON-CHART) ---
 with tab2:
+    st.subheader("📈 Der Kampf um die Krone (Punkteverlauf)")
+    
+    # Berechne fiktiven/echten Verlauf für den Chart
+    history_data = {u: [0] for u in MITSPIELER}
+    for w in range(1, woche + 1):
+        w_games = get_nfl_games(week_num=w)
+        w_scores, _ = calculate_scores(w_games, week_num=w)
+        for u in MITSPIELER:
+            prev = history_data[u][-1]
+            history_data[u].append(prev + w_scores[u])
+            
+    chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
+    st.line_chart(chart_df)
+    st.caption("ℹ️ Der Verlauf aktualisiert sich mit jeder gespielten Woche automatisch.")
+
+# --- TAB 3: HEAD-TO-HEAD DUELL & TRASH TALK PINNWAND ---
+with tab3:
+    st.subheader("⚔️ Head-to-Head Vergleich")
+    col_p1, col_p2 = st.columns(2)
+    with col_p1: p1 = st.selectbox("Spieler 1:", MITSPIELER, index=0)
+    with col_p2: p2 = st.selectbox("Spieler 2:", MITSPIELER, index=1)
+    
+    if p1 != p2:
+        diff_count = 0
+        st.markdown(f"**Vergleich für Woche {woche}:**")
+        for g in nfl_games:
+            t1 = tipps_db.get(p1, {}).get(g['id'], "-")
+            t2 = tipps_db.get(p2, {}).get(g['id'], "-")
+            if t1 != t2 and is_after_thursday_noon:
+                diff_count += 1
+                st.info(f"⚡ **{g['matchup']}**: {p1} setzt auf **{t1}** 🆚 {p2} setzt auf **{t2}**")
+        if diff_count == 0 and is_after_thursday_noon:
+            st.success("Beide Spieler haben in dieser Woche exakt dieselben Teams getippt!")
+        elif not is_after_thursday_noon:
+            st.warning("🔒 Der direkte Tipp-Vergleich schaltet sich am Donnerstag um 12:00 Uhr frei!")
+
+    st.markdown("---")
+    st.subheader("💬 Trash Talk Pinnwand")
+    
+    # Kommentare der Woche anzeigen
+    w_comments = comments_db.get(str(woche), [])
+    for c in w_comments:
+        st.markdown(f"<div class='chat-bubble'><b>{c['user']}:</b> {c['text']} <span style='font-size:0.75rem; color:#94a3b8;'>({c['time']})</span></div>", unsafe_allow_html=True)
+        
+    if is_after_thursday_noon:
+        with st.form("comment_form"):
+            c_user = st.selectbox("Wer schreibt?", MITSPIELER, key="comment_u")
+            c_pass = st.text_input("Passwort zur Bestätigung", type="password", key="comment_p")
+            c_text = st.text_input("Dein Spruch / Kommentar zur Woche:")
+            if st.form_submit_button("💬 Kommentar posten"):
+                if c_pass == PASSWORDS.get(c_user) and c_text.strip():
+                    if str(woche) not in comments_db:
+                        comments_db[str(woche)] = []
+                    comments_db[str(woche)].append({
+                        "user": c_user,
+                        "text": c_text.strip(),
+                        "time": datetime.now().strftime("%H:%M")
+                    })
+                    save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db)
+                    st.success("Spruch gepostet!")
+                    st.rerun()
+                else:
+                    st.error("Falsches Passwort oder leerer Text.")
+    else:
+        st.caption("🔒 Die Trash-Talk Pinnwand öffnet jeden Donnerstag ab 12:00 Uhr nach der Tippabgabe!")
+
+# --- TAB 4: TABLEARISCHE UBERSICHT ---
+with tab4:
     st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
     show_demo = st.checkbox("💡 DEMO-MODUS ANZEIGEN (Vorschau für die Gruppe)", value=not is_after_thursday_noon)
 
@@ -402,8 +478,8 @@ with tab2:
             styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
             st.dataframe(styled_real_df, width="stretch")
 
-# --- TAB 3: FANCY SPIELPLAN & LIVE SCORES ---
-with tab3:
+# --- TAB 5: FANCY SPIELPLAN & LIVE SCORES ---
+with tab5:
     st.subheader(f"🏈 NFL Game Center — Woche {woche}")
     if not nfl_games:
         st.info("Keine Begegnungen für diese Woche gefunden.")
@@ -411,7 +487,6 @@ with tab3:
         col_a, col_b = st.columns(2)
         for idx, g in enumerate(nfl_games):
             target_col = col_a if idx % 2 == 0 else col_b
-            
             is_completed = g['completed']
             h_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['home_abbr'] else ""
             a_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['away_abbr'] else ""
@@ -436,8 +511,8 @@ with tab3:
                     </div>
                 """, unsafe_allow_html=True)
 
-# --- TAB 4: BONUSTIPPS & ADMIN BACKUP ---
-with tab4:
+# --- TAB 6: BONUSTIPPS & ADMIN BACKUP ---
+with tab6:
     st.subheader("🎯 Saison-Bonustipps (Je 15 Punkte)")
     deadline = datetime(2026, 9, 2, 23, 59, 59)
     can_edit_bonus = datetime.now() <= deadline
@@ -460,7 +535,7 @@ with tab4:
                 new_b[q_key] = st.text_input(q, value=current_val, disabled=not can_edit_bonus)
             if can_edit_bonus and st.form_submit_button("🎯 Bonustipps speichern"):
                 bonus_db[user_b_login] = new_b
-                if save_db(tipps_db, bonus_db, bonus_results, joker_db):
+                if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db):
                     st.success(f"✅ Bonustipps für {user_b_login} wurden ERFOLGREICH gespeichert!")
                     st.toast("Bonustipps gespeichert!", icon="💾")
     elif pass_b_login != "":
@@ -476,7 +551,8 @@ with tab4:
                     "tipps_db": tipps_db,
                     "bonus_db": bonus_db,
                     "bonus_results": bonus_results,
-                    "joker_db": joker_db
+                    "joker_db": joker_db,
+                    "comments_db": comments_db
                 }, indent=4)
                 st.download_button(label="💾 Datenbank als JSON herunterladen", data=db_data_string, file_name="nfl_tippspiel_data_backup.json", mime="application/json")
             with col_up:
@@ -488,7 +564,8 @@ with tab4:
                         bonus_db = restored_data.get("bonus_db", bonus_db)
                         bonus_results = restored_data.get("bonus_results", bonus_results)
                         joker_db = restored_data.get("joker_db", joker_db)
-                        save_db(tipps_db, bonus_db, bonus_results, joker_db)
+                        comments_db = restored_data.get("comments_db", comments_db)
+                        save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db)
                         st.success("✅ Datenbank erfolgreich wiederhergestellt!")
                         st.rerun()
                     except Exception as e:
@@ -503,11 +580,11 @@ with tab4:
                     admin_new_res[q_key] = st.text_input(f"Lösung: {q}", value=bonus_results.get(q_key, ""))
                 if st.form_submit_button("Musterlösung speichern & Punkte verteilen"):
                     bonus_results = admin_new_res
-                    if save_db(tipps_db, bonus_db, bonus_results, joker_db):
+                    if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db):
                         st.success("✅ Musterlösung erfolgreich gespeichert! Punkte wurden neu berechnet.")
 
-# --- TAB 5: NORMALES TIPPEN ---
-with tab5:
+# --- TAB 7: NORMALES TIPPEN ---
+with tab7:
     st.subheader("Login & Spieltag tippen")
     if is_after_thursday_noon:
         st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
@@ -579,7 +656,7 @@ with tab5:
                             joker_db[active_user] = {}
                         joker_db[active_user][str(woche)] = selected_joker_game
                     
-                    if save_db(tipps_db, bonus_db, bonus_results, joker_db):
+                    if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db):
                         st.success(f"✅ **ERFOLGREICH GESPEICHERT!** Alle Tipps für {active_user} (Woche {woche}) wurden sicher eingetragen.")
                         st.toast("Tipps erfolgreich gespeichert!", icon="🏈")
                         
@@ -588,5 +665,3 @@ with tab5:
                                 t_choice = new_tipps.get(g['id'], "-")
                                 is_joker = " 🃏 (2x Joker)" if selected_joker_game == g['id'] else ""
                                 st.write(f"• **{g['matchup']}:** {t_choice}{is_joker}")
-            else:
-                st.warning("Das Speichern ist nicht mehr möglich, da die Frist abgelaufen ist.")
