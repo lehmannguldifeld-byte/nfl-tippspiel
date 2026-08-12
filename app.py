@@ -49,7 +49,7 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
 
-    /* FIX FÜR INPUT-SCHRIFTFARBE */
+    /* Input Styling */
     .stTextInput input, .stSelectbox select {
         color: #ffffff !important;
         background-color: rgba(15, 23, 42, 0.8) !important;
@@ -59,6 +59,20 @@ st.markdown("""
     .stTextInput label, .stSelectbox label {
         color: #f8fafc !important;
         font-weight: 600 !important;
+    }
+    
+    /* Demo Banner Styling */
+    .demo-banner {
+        background: linear-gradient(90deg, #b91c1c 0%, #f59e0b 50%, #b91c1c 100%);
+        color: #ffffff;
+        font-weight: 800;
+        text-align: center;
+        padding: 10px;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        letter-spacing: 1px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -174,7 +188,6 @@ def calculate_scores(all_games, phase="Regular Season", week_num=1):
         if game['completed'] and game['winner_abbr']:
             for u in MITSPIELER:
                 if tipps_db.get(u, {}).get(game['id']) == game['winner_abbr']:
-                    # Prüfen ob Joker für dieses Spiel gesetzt wurde
                     joker_game_id = joker_db.get(u, {}).get(str(week_num))
                     joker_mult = 2 if (joker_game_id and joker_game_id == game['id']) else 1
                     
@@ -204,11 +217,9 @@ with c2:
 nfl_games = get_nfl_games(week_num=woche, season_type=2)
 scores, hits = calculate_scores(nfl_games, phase=phase_choice, week_num=woche)
 
-# Ermitteln wer auf Platz 7 & 8 liegt (Joker Berechtigung)
 sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if len(sorted_scores) >= 2 else []
 
-# --- PRÜFUNG: DEADLINE ---
 now = datetime.now()
 week1_deadline = datetime(2026, 9, 3, 12, 0, 0)
 
@@ -240,12 +251,32 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: TABLEARISCHE UBERSICHT ---
+# --- TAB 2: TABLEARISCHE UBERSICHT (MIT ANGENEHMER DEMO-FUNKTION) ---
 with tab2:
-    st.subheader(f"Alle Tipps für Woche {woche}")
+    st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
     
-    if not is_after_thursday_noon:
-        st.warning("🔒 Die Tipp-Übersicht für diese Woche wird erst am entsprechenden **Donnerstag um 12:00 Uhr** freigeschaltet!")
+    # KONTROLL-SCHALTER FÜR DEMO-ANSICHT
+    show_demo = st.checkbox("💡 DEMO-MODUS ANZEIGEN (Vorschau für die Gruppe)", value=not is_after_thursday_noon)
+    
+    if show_demo:
+        st.markdown("<div class='demo-banner'>⚡ VORSCHAU / DEMO-ANSICHT (So sieht die Übersicht jeden Donnerstag ab 12:00 Uhr aus!) ⚡</div>", unsafe_allow_html=True)
+        
+        # Hochwertige Demo-Daten für die Anschauung
+        demo_games = [
+            {"Matchup": "Chiefs vs. Eagles 🏈", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 (2x)", "Domi": "PHI 🃏 (2x)", "Pädu": "KC"},
+            {"Matchup": "49ers vs. Cowboys 🏈", "Andy": "SF", "Ronny": "SF", "Bauzzen": "SF", "Bössi": "DAL", "Jerome": "SF", "Mäni": "DAL", "Domi": "SF", "Pädu": "SF"},
+            {"Matchup": "Lions vs. Packers 🏈", "Andy": "DET", "Ronny": "GB", "Bauzzen": "DET", "Bössi": "DET", "Jerome": "GB", "Mäni": "GB", "Domi": "DET", "Pädu": "DET"},
+            {"Matchup": "Bills vs. Dolphins 🏈", "Andy": "BUF", "Ronny": "BUF", "Bauzzen": "MIA", "Bössi": "BUF", "Jerome": "BUF", "Mäni": "BUF", "Domi": "MIA", "Pädu": "BUF"},
+            {"Matchup": "Ravens vs. Bengals 🏈", "Andy": "BAL", "Ronny": "BAL", "Bauzzen": "BAL", "Bössi": "CIN", "Jerome": "BAL", "Mäni": "CIN", "Domi": "BAL", "Pädu": "BAL"},
+            {"Matchup": "Texans vs. Colts 🏈", "Andy": "HOU", "Ronny": "HOU", "Bauzzen": "HOU", "Bössi": "HOU", "Jerome": "IND", "Mäni": "HOU", "Domi": "HOU", "Pädu": "IND"}
+        ]
+        
+        df_demo = pd.DataFrame(demo_games)
+        st.dataframe(df_demo, use_container_width=True, height=280)
+        st.caption("ℹ️ *Hinweis:* Die Joker (🃏 2x) von den Plätzen 7 & 8 werden automatisch hervorgehoben.")
+    
+    elif not is_after_thursday_noon:
+        st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
     else:
         if not nfl_games:
             st.info("Keine Spiele gefunden.")
@@ -255,7 +286,6 @@ with tab2:
                 row = {"Begegnung": g['matchup'], "Status": g['status_detail']}
                 for u in MITSPIELER:
                     t = tipps_db.get(u, {}).get(g['id'], "-")
-                    # Wenn Joker gesetzt wurde, entsprechend markieren
                     if joker_db.get(u, {}).get(str(woche)) == g['id']:
                         t += " 🃏 (2x)"
                     row[u] = t
@@ -311,7 +341,7 @@ with tab3:
                     st.success("Musterlösung gespeichert! Punkte wurden aktualisiert.")
                     st.rerun()
 
-# --- TAB 4: NORMALES TIPPEN INKLUSIVE JOKER SELECTION ---
+# --- TAB 4: NORMALES TIPPEN ---
 with tab4:
     st.subheader("Login & Spieltag tippen")
     
@@ -332,7 +362,6 @@ with tab4:
         user_existing_tipps = tipps_db.get(active_user, {})
         new_tipps = user_existing_tipps.copy()
 
-        # JOKER SYSTEM FÜR PLATZ 7 & 8
         selected_joker_game = None
         if active_user in bottom_two:
             st.warning("🃏 **Catch-Up Joker verfügbar!** Da du aktuell auf den hinteren Plätzen liegst, kannst du für EIN Spiel dieser Woche die doppelte Punkteanzahl (2x) aktivieren.")
