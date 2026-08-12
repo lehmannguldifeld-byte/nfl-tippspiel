@@ -8,6 +8,18 @@ from streamlit_gsheets import GSheetsConnection
 # --- SEITEN-KONFIGURATION & STADION-FLUTLICHT DESIGN ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
 
+# --- OFFIZIELLE NFL TEAM FARBEN ---
+TEAM_COLORS = {
+    "ARI": "#97233F", "ATL": "#A71930", "BAL": "#241773", "BUF": "#00338D",
+    "CAR": "#0085CA", "CHI": "#0B162A", "CIN": "#FB4F14", "CLE": "#311D00",
+    "DAL": "#002244", "DEN": "#FB4F14", "DET": "#0076B6", "GB":  "#203731",
+    "HOU": "#03202F", "IND": "#002C5F", "JAX": "#006778", "KC":  "#E31837",
+    "LV":  "#000000", "LAC": "#0080C6", "LAR": "#003594", "MIA": "#008E97",
+    "MIN": "#4F2683", "NE":  "#002244", "NO":  "#D3BC8D", "NYG": "#0B2265",
+    "NYJ": "#125740", "PHI": "#004C54", "PIT": "#FFB612", "SF":  "#AA0000",
+    "SEA": "#002244", "TB":  "#D50A0A", "TEN": "#0C2340", "WAS": "#5A1414"
+}
+
 st.markdown("""
     <style>
     /* Stadion-Flutlicht Effect Background */
@@ -27,7 +39,6 @@ st.markdown("""
         margin-bottom: 25px;
     }
     
-    /* Karten im helleren Stadium-Contrast Look */
     .leaderboard-card {
         background: rgba(30, 41, 59, 0.90);
         border-left: 6px solid #38bdf8;
@@ -49,7 +60,6 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
 
-    /* Input Styling */
     .stTextInput input, .stSelectbox select {
         color: #ffffff !important;
         background-color: rgba(15, 23, 42, 0.8) !important;
@@ -61,7 +71,6 @@ st.markdown("""
         font-weight: 600 !important;
     }
     
-    /* Demo Banner Styling */
     .demo-banner {
         background: linear-gradient(90deg, #0284c7 0%, #38bdf8 50%, #0284c7 100%);
         color: #ffffff;
@@ -73,33 +82,6 @@ st.markdown("""
         letter-spacing: 1px;
         margin-bottom: 20px;
         box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
-    }
-
-    /* Stylish Custom Table Badges */
-    .badge-home {
-        background-color: #0284c7;
-        color: white;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-weight: bold;
-        display: inline-block;
-    }
-    .badge-away {
-        background-color: #ea580c;
-        color: white;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-weight: bold;
-        display: inline-block;
-    }
-    .badge-joker {
-        background-color: #f59e0b;
-        color: #0f172a;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-weight: 900;
-        border: 1px solid #ffffff;
-        display: inline-block;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -276,24 +258,28 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: TABLEARISCHE UBERSICHT ---
+# --- TAB 2: TABLEARISCHE UBERSICHT MIT REAL TEAM-FARBEN ---
 with tab2:
     st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
     
     show_demo = st.checkbox("💡 DEMO-MODUS ANZEIGEN (Vorschau für die Gruppe)", value=not is_after_thursday_noon)
-    
-    # FARB-STYLING HELPER METHODE
-    def style_teams(val, team1, team2):
+
+    def style_team_colors(val):
+        clean_val = str(val).replace(" 🃏 2x", "").strip()
+        bg_color = TEAM_COLORS.get(clean_val, "#334155")
+        
+        # Textfarbe weiss (bei Gelb wie Pittsburgh schwarz)
+        text_color = "#0f172a" if clean_val in ["PIT", "NO"] else "#ffffff"
+        
+        style = f'background-color: {bg_color}; color: {text_color}; font-weight: bold; border-radius: 6px;'
+        
         if "🃏" in str(val):
-            return 'background-color: #f59e0b; color: #0f172a; font-weight: bold; border-radius: 6px;'
-        elif team1 in str(val):
-            return 'background-color: #0284c7; color: white; font-weight: bold; border-radius: 6px;'
-        elif team2 in str(val):
-            return 'background-color: #ea580c; color: white; font-weight: bold; border-radius: 6px;'
-        return ''
+            style += ' border: 2.5px solid #f59e0b; box-shadow: 0 0 8px #f59e0b;'
+            
+        return style
 
     if show_demo:
-        st.markdown("<div class='demo-banner'>⚡ VORSCHAU: Blau = Team 1 | Orange = Team 2 | Gold = Joker (2x) ⚡</div>", unsafe_allow_html=True)
+        st.markdown("<div class='demo-banner'>⚡ VORSCHAU: Tipp-Übersicht in den echten Team-Farben! ⚡</div>", unsafe_allow_html=True)
         
         demo_games = [
             {"Matchup": "Chiefs (KC) vs. Eagles (PHI)", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 2x", "Domi": "PHI 🃏 2x", "Pädu": "KC"},
@@ -304,18 +290,10 @@ with tab2:
         ]
         
         df_demo = pd.DataFrame(demo_games)
-        
-        # Anwenden des dynamischen Farb-Stylings auf die Spalten
-        styled_df = df_demo.style.apply(lambda col: [
-            style_teams(v, "KC", "PHI") if "Chiefs" in df_demo.loc[i, "Matchup"] else
-            style_teams(v, "SF", "DAL") if "49ers" in df_demo.loc[i, "Matchup"] else
-            style_teams(v, "DET", "GB") if "Lions" in df_demo.loc[i, "Matchup"] else
-            style_teams(v, "BUF", "MIA") if "Bills" in df_demo.loc[i, "Matchup"] else
-            style_teams(v, "BAL", "CIN") for i, v in enumerate(col)
-        ] if col.name in MITSPIELER else [''] * len(col))
+        styled_df = df_demo.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
 
         st.dataframe(styled_df, use_container_width=True, height=280)
-        st.caption("🔵 **Blau:** Heimteam | 🟠 **Orange:** Auswärtsteam | 🟡 **Gold:** Joker-Einsatz")
+        st.caption("🎨 **Farben:** Offizielle NFL Team-Hauptfarben | 🟡 **Goldene Umrandung:** Joker-Einsatz (2x)")
     
     elif not is_after_thursday_noon:
         st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
@@ -334,7 +312,8 @@ with tab2:
                 table_data.append(row)
             
             df_table = pd.DataFrame(table_data)
-            st.dataframe(df_table, use_container_width=True)
+            styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
+            st.dataframe(styled_real_df, use_container_width=True)
 
 # --- TAB 3: BONUSTIPPS ---
 with tab3:
