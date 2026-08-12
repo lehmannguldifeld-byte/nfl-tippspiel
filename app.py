@@ -5,13 +5,14 @@ from datetime import datetime
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-# --- SEITEN-KONFIGURATION & NIGHT GAME THEME ---
+# --- SEITEN-KONFIGURATION & STADION-FLUTLICHT DESIGN ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
 
 st.markdown("""
     <style>
+    /* Stadion-Flutlicht Effect Background */
     .stApp {
-        background: linear-gradient(rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.95)), 
+        background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.45) 0%, rgba(30, 41, 59, 0.85) 55%, rgba(15, 23, 42, 0.98) 100%),
                     url('https://images.unsplash.com/photo-1566577739112-5180d4bf9390?auto=format&fit=crop&w=1920&q=80');
         background-size: cover;
         background-attachment: fixed;
@@ -19,29 +20,33 @@ st.markdown("""
     }
     .main-title {
         text-align: center;
-        font-size: 2.8rem;
+        font-size: 3rem;
         font-weight: 900;
-        color: #38bdf8;
-        text-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
-        margin-bottom: 20px;
+        color: #0284c7;
+        text-shadow: 0 0 18px rgba(255, 255, 255, 0.8), 0 0 30px rgba(56, 189, 248, 0.5);
+        margin-bottom: 25px;
     }
+    
+    /* Karten im helleren Stadium-Contrast Look */
     .leaderboard-card {
-        background: #1e293b;
-        border-left: 6px solid #0284c7;
+        background: rgba(30, 41, 59, 0.90);
+        border-left: 6px solid #38bdf8;
         border-radius: 12px;
         padding: 16px 24px;
         margin-bottom: 12px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(4px);
     }
     .game-card {
-        background-color: #1e293b;
+        background-color: rgba(30, 41, 59, 0.88);
         border-radius: 12px;
         padding: 18px;
-        border: 1px solid #334155;
+        border: 1px solid rgba(255, 255, 255, 0.15);
         margin-bottom: 15px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -178,10 +183,14 @@ with c2:
 nfl_games = get_nfl_games(week_num=woche, season_type=2)
 scores, hits = calculate_scores(nfl_games, phase=phase_choice)
 
-# --- PRÜFUNG: DONNERSTAG 12:00 UHR DEADLINE ---
+# --- PRÜFUNG: DEADLINE ---
 now = datetime.now()
-# Donnerstag ist Wochentag 3 (Montag=0, Dienstag=1, Mittwoch=2, Donnerstag=3, ...)
-is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
+week1_deadline = datetime(2026, 9, 3, 12, 0, 0)
+
+if woche == 1:
+    is_after_thursday_noon = now >= week1_deadline
+else:
+    is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Rangliste", "📋 Tipp-Übersicht (Woche)", "🎯 Bonustipps (bis 02.09.)", "🔒 Tippen (Login)"])
 
@@ -199,7 +208,7 @@ with tab1:
                     <span style='color: #4ade80; font-weight: bold; margin-left: 10px;'>{fire}</span>
                 </div>
                 <div style='font-size: 1.5rem; font-weight: 800; color: #38bdf8;'>
-                    {score} <span style='font-size: 0.9rem; color: #94a3b8;'>Pkt</span>
+                    {score} <span style='font-size: 0.9rem; color: #cbd5e1;'>Pkt</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -209,7 +218,7 @@ with tab2:
     st.subheader(f"Alle Tipps für Woche {woche}")
     
     if not is_after_thursday_noon:
-        st.warning("🔒 Die Tipp-Übersicht für die aktuelle Woche wird erst ab **Donnerstag 12:00 Uhr** freigeschaltet!")
+        st.warning("🔒 Die Tipp-Übersicht für diese Woche wird erst am entsprechenden **Donnerstag um 12:00 Uhr** freigeschaltet!")
     else:
         if not nfl_games:
             st.info("Keine Spiele gefunden.")
@@ -271,14 +280,17 @@ with tab3:
                     st.success("Musterlösung gespeichert! Punkte wurden aktualisiert.")
                     st.rerun()
 
-# --- TAB 4: NORMALES TIPPEN (MIT SPONSORED THURSDAY DEADLINE) ---
+# --- TAB 4: NORMALES TIPPEN ---
 with tab4:
     st.subheader("Login & Spieltag tippen")
     
     if is_after_thursday_noon:
-        st.error(f"🚨 Die Tippabgabe für Woche {woche} ist seit Donnerstag 12:00 Uhr GESPERRT!")
+        st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
     else:
-        st.info(f"⏳ Tippabgabe offen! Deadline für Woche {woche}: Dieser Donnerstag um 12:00 Uhr mittags.")
+        if woche == 1:
+            st.info("⏳ Tippabgabe für Woche 1 offen! Frist: **Donnerstag, 03.09.2026 um 12:00 Uhr**.")
+        else:
+            st.info(f"⏳ Tippabgabe offen! Deadline für Woche {woche}: Dieser Donnerstag um 12:00 Uhr mittags.")
 
     col_u, col_p = st.columns(2)
     with col_u: active_user = st.selectbox("Wer bist du?", MITSPIELER)
@@ -310,7 +322,7 @@ with tab4:
                 selected = st.radio(
                     f"Tipp: {game['home_team']} vs {game['away_team']}",
                     options, index=idx, key=f"r_{active_user}_{game['id']}", horizontal=True,
-                    disabled=is_after_thursday_noon # Deaktiviert Felder nach Donnerstag 12 Uhr
+                    disabled=is_after_thursday_noon
                 )
                 new_tipps[game['id']] = selected
                 st.markdown("</div>", unsafe_allow_html=True)
