@@ -48,6 +48,18 @@ st.markdown("""
         margin-bottom: 15px;
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
+
+    /* FIX FÜR INPUT-SCHRIFTFARBE IN DEN BONUSTIPPS & PASSWÖRTERN */
+    .stTextInput input {
+        color: #ffffff !important;
+        background-color: rgba(15, 23, 42, 0.8) !important;
+        border: 1px solid #38bdf8 !important;
+        border-radius: 8px !important;
+    }
+    .stTextInput label {
+        color: #f8fafc !important;
+        font-weight: 600 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
