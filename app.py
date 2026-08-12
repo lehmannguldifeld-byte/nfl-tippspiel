@@ -61,6 +61,45 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     }
 
+    /* FANCY SCHEDULE CARDS */
+    .schedule-card {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 16px;
+        padding: 16px 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+        backdrop-filter: blur(6px);
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .schedule-card:hover {
+        border-color: #38bdf8;
+        transform: translateY(-2px);
+    }
+    .team-box {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .team-name {
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: #f8fafc;
+    }
+    .score-badge {
+        font-size: 1.4rem;
+        font-weight: 900;
+        color: #38bdf8;
+        background: rgba(15, 23, 42, 0.8);
+        padding: 4px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .winner-highlight {
+        color: #f59e0b !important;
+        text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    }
+
     .stTextInput input, .stSelectbox select {
         color: #ffffff !important;
         background-color: rgba(15, 23, 42, 0.8) !important;
@@ -105,11 +144,10 @@ BONUS_QUESTIONS = [
     "8) Team mit den meisten Punkten der Saison"
 ]
 
-# --- DATENBANK VERWALTUNG (VOLLSYNCHRONISIERT MIT GITHUB) ---
+# --- DATENBANK VERWALTUNG ---
 DB_FILE = "nfl_tippspiel_data.json"
 
 def fetch_from_github():
-    """Holt die aktuellste JSON direkt von GitHub"""
     try:
         token = st.secrets.get("GITHUB_TOKEN")
         repo = st.secrets.get("GITHUB_REPO")
@@ -127,10 +165,8 @@ def fetch_from_github():
     return None
 
 def load_db():
-    # 1. Versuch: Von GitHub laden
     gh_data = fetch_from_github()
     if gh_data:
-        # Lokale Datei direkt aktualisieren
         with open(DB_FILE, "w") as f:
             json.dump(gh_data, f, indent=4)
         return (
@@ -140,7 +176,6 @@ def load_db():
             gh_data.get("joker_db", {u: {} for u in MITSPIELER})
         )
     
-    # 2. Fallback: Von lokaler Datei laden
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r") as f:
@@ -157,7 +192,6 @@ def load_db():
     return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}
 
 def sync_to_github(data_dict):
-    """Sendet automatischen Commit an GitHub Repo"""
     try:
         token = st.secrets.get("GITHUB_TOKEN")
         repo = st.secrets.get("GITHUB_REPO")
@@ -200,6 +234,17 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db):
     return True
 
 tipps_db, bonus_db, bonus_results, joker_db = load_db()
+
+def get_current_nfl_week():
+    now = datetime.now()
+    week1_deadline = datetime(2026, 9, 3, 12, 0, 0)
+    if now < week1_deadline:
+        return 1
+    days_diff = (now - week1_deadline).days
+    calc_week = 1 + (days_diff // 7)
+    return min(max(calc_week, 1), 18)
+
+current_default_week = get_current_nfl_week()
 
 # --- ESPN API ---
 @st.cache_data(ttl=300)
@@ -271,7 +316,7 @@ st.markdown("<h1 class='main-title'>🏈 NFL TIPPSPIEL 2026/27</h1>", unsafe_all
 
 c1, c2, c3 = st.columns([1, 2, 1])
 with c2:
-    woche = st.slider("Woche / Spieltag auswählen", min_value=1, max_value=18, value=1)
+    woche = st.slider("Woche / Spieltag auswählen", min_value=1, max_value=18, value=current_default_week)
     phase_choice = "Regular Season" if woche <= 18 else "Playoffs"
 
 nfl_games = get_nfl_games(week_num=woche, season_type=2)
@@ -288,7 +333,7 @@ if woche == 1:
 else:
     is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Rangliste", "📋 Tipp-Übersicht (Woche)", "🎯 Bonustipps (bis 02.09.)", "🔒 Tippen (Login)"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Rangliste", "📋 Tipp-Übersicht (Woche)", "🗓️ Spielplan & Scores", "🎯 Bonustipps", "🔒 Tippen (Login)"])
 
 # --- TAB 1: RANGLISTE ---
 with tab1:
@@ -314,7 +359,6 @@ with tab1:
 # --- TAB 2: TABLEARISCHE UBERSICHT ---
 with tab2:
     st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
-    
     show_demo = st.checkbox("💡 DEMO-MODUS ANZEIGEN (Vorschau für die Gruppe)", value=not is_after_thursday_noon)
 
     def style_team_colors(val):
@@ -328,7 +372,6 @@ with tab2:
 
     if show_demo:
         st.markdown("<div class='demo-banner'>⚡ VORSCHAU: Tipp-Übersicht in den echten Team-Farben! ⚡</div>", unsafe_allow_html=True)
-        
         demo_games = [
             {"Matchup": "Chiefs (KC) vs. Eagles (PHI)", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 2x", "Domi": "PHI 🃏 2x", "Pädu": "KC"},
             {"Matchup": "49ers (SF) vs. Cowboys (DAL)", "Andy": "SF", "Ronny": "SF", "Bauzzen": "SF", "Bössi": "DAL", "Jerome": "SF", "Mäni": "DAL", "Domi": "SF", "Pädu": "SF"},
@@ -336,13 +379,10 @@ with tab2:
             {"Matchup": "Bills (BUF) vs. Dolphins (MIA)", "Andy": "BUF", "Ronny": "BUF", "Bauzzen": "MIA", "Bössi": "BUF", "Jerome": "BUF", "Mäni": "BUF", "Domi": "MIA", "Pädu": "BUF"},
             {"Matchup": "Ravens (BAL) vs. Bengals (CIN)", "Andy": "BAL", "Ronny": "BAL", "Bauzzen": "BAL", "Bössi": "CIN", "Jerome": "BAL", "Mäni": "CIN", "Domi": "BAL", "Pädu": "BAL"}
         ]
-        
         df_demo = pd.DataFrame(demo_games)
         styled_df = df_demo.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
-
         st.dataframe(styled_df, width="stretch", height=280)
         st.caption("🎨 **Farben:** Offizielle NFL Team-Hauptfarben | 🟡 **Goldene Umrandung:** Joker-Einsatz (2x)")
-    
     elif not is_after_thursday_noon:
         st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
     else:
@@ -358,15 +398,47 @@ with tab2:
                         t += " 🃏 2x"
                     row[u] = t
                 table_data.append(row)
-            
             df_table = pd.DataFrame(table_data)
             styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
             st.dataframe(styled_real_df, width="stretch")
 
-# --- TAB 3: BONUSTIPPS & ADMIN BACKUP ---
+# --- TAB 3: FANCY SPIELPLAN & LIVE SCORES ---
 with tab3:
+    st.subheader(f"🏈 NFL Game Center — Woche {woche}")
+    if not nfl_games:
+        st.info("Keine Begegnungen für diese Woche gefunden.")
+    else:
+        col_a, col_b = st.columns(2)
+        for idx, g in enumerate(nfl_games):
+            target_col = col_a if idx % 2 == 0 else col_b
+            
+            is_completed = g['completed']
+            h_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['home_abbr'] else ""
+            a_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['away_abbr'] else ""
+            
+            with target_col:
+                st.markdown(f"""
+                    <div class='schedule-card'>
+                        <div style='text-align: center; color: #94a3b8; font-size: 0.85rem; font-weight: 700; margin-bottom: 12px; letter-spacing: 0.5px;'>
+                            {g['status_detail']}
+                        </div>
+                        <div style='display: flex; justify-content: space-between; align-items: center;'>
+                            <div class='team-box'>
+                                <img src='{g['home_logo']}' width='45'>
+                                <span class='team-name {h_win}'>{g['home_team']}</span>
+                            </div>
+                            <div class='score-badge'>{g['home_score']} : {g['away_score']}</div>
+                            <div class='team-box' style='flex-direction: row-reverse;'>
+                                <img src='{g['away_logo']}' width='45'>
+                                <span class='team-name {a_win}'>{g['away_team']}</span>
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+# --- TAB 4: BONUSTIPPS & ADMIN BACKUP ---
+with tab4:
     st.subheader("🎯 Saison-Bonustipps (Je 15 Punkte)")
-    
     deadline = datetime(2026, 9, 2, 23, 59, 59)
     can_edit_bonus = datetime.now() <= deadline
     
@@ -381,13 +453,11 @@ with tab3:
     if pass_b_login == PASSWORDS.get(user_b_login):
         u_bonus = bonus_db.get(user_b_login, {})
         new_b = {}
-        
         with st.form("bonus_form"):
             for idx, q in enumerate(BONUS_QUESTIONS):
                 q_key = f"q_{idx}"
                 current_val = u_bonus.get(q_key, "")
                 new_b[q_key] = st.text_input(q, value=current_val, disabled=not can_edit_bonus)
-            
             if can_edit_bonus and st.form_submit_button("🎯 Bonustipps speichern"):
                 bonus_db[user_b_login] = new_b
                 if save_db(tipps_db, bonus_db, bonus_results, joker_db):
@@ -396,13 +466,11 @@ with tab3:
     elif pass_b_login != "":
         st.error("Falsches Passwort.")
 
-    # --- ADMIN BEREICH & DATENBANK-BACKUP ---
     with st.expander("⚙️ Admin-Bereich: Musterlösung & Datenbank-Backup"):
         admin_pass = st.text_input("Admin Passwort (Nutze dein Paedu Passwort)", type="password", key="admin_pass")
         if admin_pass == PASSWORDS["Pädu"]:
             st.markdown("### 📥 1. Datenbank Sichern / Wiederherstellen")
             col_down, col_up = st.columns(2)
-            
             with col_down:
                 db_data_string = json.dumps({
                     "tipps_db": tipps_db,
@@ -410,14 +478,7 @@ with tab3:
                     "bonus_results": bonus_results,
                     "joker_db": joker_db
                 }, indent=4)
-                
-                st.download_button(
-                    label="💾 Datenbank als JSON herunterladen",
-                    data=db_data_string,
-                    file_name="nfl_tippspiel_data_backup.json",
-                    mime="application/json"
-                )
-            
+                st.download_button(label="💾 Datenbank als JSON herunterladen", data=db_data_string, file_name="nfl_tippspiel_data_backup.json", mime="application/json")
             with col_up:
                 uploaded_file = st.file_uploader("📂 Backup JSON wiederherstellen", type=["json"])
                 if uploaded_file is not None:
@@ -445,10 +506,9 @@ with tab3:
                     if save_db(tipps_db, bonus_db, bonus_results, joker_db):
                         st.success("✅ Musterlösung erfolgreich gespeichert! Punkte wurden neu berechnet.")
 
-# --- TAB 4: NORMALES TIPPEN ---
-with tab4:
+# --- TAB 5: NORMALES TIPPEN ---
+with tab5:
     st.subheader("Login & Spieltag tippen")
-    
     if is_after_thursday_noon:
         st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
     else:
