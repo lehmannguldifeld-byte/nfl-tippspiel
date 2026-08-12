@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 import pandas as pd
 import os
+import base64
 
 # --- SEITEN-KONFIGURATION & STADION-FLUTLICHT DESIGN ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
@@ -104,7 +105,7 @@ BONUS_QUESTIONS = [
     "8) Team mit den meisten Punkten der Saison"
 ]
 
-# --- SICHERE SPEICHERUNG (ROBUST & OHNE API-LOCKED ERRORS) ---
+# --- DATENBANK VERWALTUNG (LOCAL + AUTOMATISCHES GITHUB BACKUP) ---
 DB_FILE = "nfl_tippspiel_data.json"
 
 def load_db():
@@ -122,6 +123,37 @@ def load_db():
             pass
     return {u: {} for u in MITSPIELER}, {u: {} for u in MITSPIELER}, {}, {u: {} for u in MITSPIELER}
 
+def sync_to_github(data_dict):
+    """Sendet automatischen Commit an GitHub Repo"""
+    try:
+        token = st.secrets.get("GITHUB_TOKEN")
+        repo = st.secrets.get("GITHUB_REPO")
+        if not token or not repo:
+            return False
+        
+        url = f"https://api.github.com/repos/{repo}/contents/{DB_FILE}"
+        headers = {"Authorization": f"token {token}"}
+        
+        # SHA des bestehenden Files abfragen
+        get_res = requests.get(url, headers=headers)
+        sha = get_res.json().get("sha") if get_res.status_code == 200 else None
+        
+        content_json = json.dumps(data_dict, indent=4)
+        content_b64 = base64.b64encode(content_json.encode("utf-8")).decode("utf-8")
+        
+        payload = {
+            "message": "Automated backup: Update tippspiel data",
+            "content": content_b64,
+            "branch": "main"
+        }
+        if sha:
+            payload["sha"] = sha
+            
+        put_res = requests.put(url, headers=headers, json=payload)
+        return put_res.status_code in [200, 201]
+    except Exception:
+        return False
+
 def save_db(tipps_db, bonus_db, bonus_results, joker_db):
     data = {
         "tipps_db": tipps_db,
@@ -129,8 +161,12 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db):
         "bonus_results": bonus_results,
         "joker_db": joker_db
     }
+    # 1. Lokal speichern
     with open(DB_FILE, "w") as f:
         json.dump(data, f, indent=4)
+        
+    # 2. Automatischer Sync zu GitHub
+    sync_to_github(data)
     return True
 
 tipps_db, bonus_db, bonus_results, joker_db = load_db()
@@ -245,7 +281,7 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 2: TABLEARISCHE UBERSICHT MIT REAL TEAM-FARBEN ---
+# --- TAB 2: TABLEARISCHE UBERSICHT ---
 with tab2:
     st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
     
@@ -297,7 +333,7 @@ with tab2:
             styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
             st.dataframe(styled_real_df, width="stretch")
 
-# --- TAB 3: BONUSTIPPS ---
+# --- TAB 3: BONUSTIPPS & ADMIN BACKUP ---
 with tab3:
     st.subheader("🎯 Saison-Bonustipps (Je 15 Punkte)")
     
@@ -330,9 +366,45 @@ with tab3:
     elif pass_b_login != "":
         st.error("Falsches Passwort.")
 
-    with st.expander("⚙️ Admin-Bereich: Bonustipp-Musterlösung eintragen"):
+    # --- ADMIN BEREICH & DATENBANK-BACKUP ---
+    with st.expander("⚙️ Admin-Bereich: Musterlösung & Datenbank-Backup"):
         admin_pass = st.text_input("Admin Passwort (Nutze dein Paedu Passwort)", type="password", key="admin_pass")
         if admin_pass == PASSWORDS["Pädu"]:
+            st.markdown("### 📥 1. Datenbank Sichern / Wiederherstellen")
+            col_down, col_up = st.columns(2)
+            
+            with col_down:
+                db_data_string = json.dumps({
+                    "tipps_db": tipps_db,
+                    "bonus_db": bonus_db,
+                    "bonus_results": bonus_results,
+                    "joker_db": joker_db
+                }, indent=4)
+                
+                st.download_button(
+                    label="💾 Datenbank als JSON herunterladen",
+                    data=db_data_string,
+                    file_name="nfl_tippspiel_data_backup.json",
+                    mime="application/json"
+                )
+            
+            with col_up:
+                uploaded_file = st.file_uploader("📂 Backup JSON wiederherstellen", type=["json"])
+                if uploaded_file is not None:
+                    try:
+                        restored_data = json.load(uploaded_file)
+                        tipps_db = restored_data.get("tipps_db", tipps_db)
+                        bonus_db = restored_data.get("bonus_db", bonus_db)
+                        bonus_results = restored_data.get("bonus_results", bonus_results)
+                        joker_db = restored_data.get("joker_db", joker_db)
+                        save_db(tipps_db, bonus_db, bonus_results, joker_db)
+                        st.success("✅ Datenbank erfolgreich wiederhergestellt!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error("Fehler beim Einlesen der Backup-Datei.")
+
+            st.markdown("---")
+            st.markdown("### 🎯 2. Musterlösung eintragen")
             with st.form("admin_bonus_form"):
                 admin_new_res = {}
                 for idx, q in enumerate(BONUS_QUESTIONS):
@@ -420,7 +492,6 @@ with tab4:
                         st.success(f"✅ **ERFOLGREICH GESPEICHERT!** Alle Tipps für {active_user} (Woche {woche}) wurden sicher eingetragen.")
                         st.toast("Tipps erfolgreich gespeichert!", icon="🏈")
                         
-                        # Kleine Live-Zusammenfassung der abgegebenen Tipps
                         with st.expander("👁️ Deine soeben gespeicherten Tipps anzeigen", expanded=True):
                             for g in nfl_games:
                                 t_choice = new_tipps.get(g['id'], "-")
