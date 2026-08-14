@@ -331,7 +331,6 @@ def get_nfl_games(week_num=1, season_type=2):
             status = comp['status']['type']['completed']
             in_progress = comp['status']['type']['state'] == 'in'
             
-            # Führendes Team bei laufenden Spielen bestimmen
             leading_team = None
             if in_progress:
                 s1, s2 = int(t1.get('score', 0)), int(t2.get('score', 0))
@@ -419,7 +418,6 @@ if woche == 1:
 else:
     is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
-# NEUE UNTERTEILUNG IN TABS INKLUSIVE 3, 4, 5!
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "📊 Leaderboard", 
     "🚨 RedZone Live",
@@ -454,7 +452,7 @@ with tab1:
             </div>
         """, unsafe_allow_html=True)
 
-# --- FEATURE 5: TAB 2 - REDZONE LIVE CENTER (ECHTZEIT SCOREBOARD) ---
+# --- TAB 2 - REDZONE LIVE CENTER ---
 with tab2:
     st.subheader(f"🚨 RedZone Live Center — Spieltag {woche}")
     st.caption("Echtzeit-Berechnung der Punkte während der laufenden NFL-Spiele!")
@@ -571,12 +569,11 @@ with tab4:
     chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
     st.line_chart(chart_df)
 
-# --- FEATURE 4: TAB 5 - TIPP ANALYTICS & TRENDS ---
+# --- TAB 5 - TIPP ANALYTICS & TRENDS ---
 with tab5:
     st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
     st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
     
-    # 1. Lieblingsteams der Gruppe
     all_picked_teams = []
     for u in MITSPIELER:
         for game_id, team in tipps_db.get(u, {}).items():
@@ -592,7 +589,6 @@ with tab5:
         else:
             st.info("Noch keine echten Tippdaten vorhanden.")
 
-    # 2. Übereinstimmungs-Matrix
     with col_an2:
         st.markdown("### 🤝 Tipp-Übereinstimmung (Agreement Rate)")
         matrix_data = {}
@@ -607,14 +603,14 @@ with tab5:
                     pct = int((matches / len(common)) * 100)
                 else:
                     pct = 100 if u1 == u2 else 0
-                row[u2] = pct
+                row[u2] = f"{pct}%"
             matrix_data[u1] = row
             
         df_matrix = pd.DataFrame(matrix_data)
-        st.dataframe(df_matrix.style.background_gradient(cmap='Blues'), width="stretch")
+        st.dataframe(df_matrix, use_container_width=True)
         st.caption("Zeigt in %, wie oft zwei Mitspieler exakt dieselben Sieger getippt haben.")
 
-# --- FEATURE 3: TAB 6 - PLAYOFF BRACKET & POSTSEASON ---
+# --- TAB 6 - PLAYOFF BRACKET & POSTSEASON ---
 with tab6:
     st.subheader("🏆 NFL Playoff Bracket & Postseason Multiplikatoren")
     st.info("🔥 In den Playoffs steigen die Punkte pro richtigem Tipp! Wild Card: 2x Punkte | Super Bowl LXI: 3x Punkte!")
@@ -718,7 +714,7 @@ with tab8:
         ]
         df_demo = pd.DataFrame(demo_games)
         styled_df = df_demo.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
-        st.dataframe(styled_df, width="stretch", height=280)
+        st.dataframe(styled_df, use_container_width=True, height=280)
     elif not is_after_thursday_noon:
         st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
     else:
@@ -736,7 +732,7 @@ with tab8:
                 table_data.append(row)
             df_table = pd.DataFrame(table_data)
             styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
-            st.dataframe(styled_real_df, width="stretch")
+            st.dataframe(styled_real_df, use_container_width=True)
 
 # --- TAB 9: SPIELPLAN & SCORES ---
 with tab9:
