@@ -418,357 +418,22 @@ if woche == 1:
 else:
     is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
+# DEINE WUNSCH-REIHENFOLGE DER TABS!
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    "🏈 Tippen & Bonustipps", 
     "📊 Leaderboard", 
-    "🚨 RedZone Live",
-    "🏠 Host-Kalender",
-    "📈 Saisonverlauf", 
-    "📊 Tipp-Analytics",
-    "🏆 Playoff Bracket",
-    "⚔️ Head-to-Head & Trash Talk", 
     "📋 Tipp-Übersicht", 
+    "🚨 RedZone Live", 
+    "⚔️ Head-to-Head & Trash Talk", 
+    "🏠 Host-Kalender", 
     "🗓️ Spielplan & Scores", 
-    "🏈 Tippen & Bonustipps"
+    "📈 Saisonverlauf", 
+    "📊 Tipp-Analytics", 
+    "🏆 Playoff Bracket"
 ])
 
-# --- TAB 1: RANGLISTE ---
+# --- TAB 1: TIPPEN & BONUSTIPPS (DIREKT GANZ VORNE) ---
 with tab1:
-    st.subheader(f"Gesamtwertung — Woche {woche}")
-    for rank, (user, score) in enumerate(sorted_scores, 1):
-        badge = "🥇" if rank == 1 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
-        fire = " 🔥 ON FIRE (+10 Bonus!)" if hits[user] >= 6 else ""
-        joker_badge = " 🃏 (Joker-Berechtigt!)" if user in bottom_two else ""
-        
-        st.markdown(f"""
-            <div class='leaderboard-card'>
-                <div>
-                    <span style='font-size: 1.3rem; font-weight: bold;'>{badge} {user}</span>
-                    <span style='color: #4ade80; font-weight: bold; margin-left: 10px;'>{fire}</span>
-                    <span style='color: #f59e0b; font-weight: bold; margin-left: 10px;'>{joker_badge}</span>
-                </div>
-                <div style='font-size: 1.5rem; font-weight: 800; color: #38bdf8;'>
-                    {score} <span style='font-size: 0.9rem; color: #cbd5e1;'>Pkt</span>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-# --- TAB 2 - REDZONE LIVE CENTER ---
-with tab2:
-    st.subheader(f"🚨 RedZone Live Center — Spieltag {woche}")
-    st.caption("Echtzeit-Berechnung der Punkte während der laufenden NFL-Spiele!")
-    
-    live_scores = scores.copy()
-    live_games_count = 0
-    
-    for g in nfl_games:
-        if g['in_progress'] and g['leading_abbr']:
-            live_games_count += 1
-            for u in MITSPIELER:
-                if tipps_db.get(u, {}).get(g['id']) == g['leading_abbr']:
-                    j_mult = 2 if joker_db.get(u, {}).get(str(woche)) == g['id'] else 1
-                    live_scores[u] += 5 * j_mult
-
-    if live_games_count > 0:
-        st.error(f"🔴 **LIVE IN PROGRESS:** {live_games_count} Spiel(e) laufen aktuell!")
-    else:
-        st.info("ℹ️ Aktuell laufen keine Live-Spiele. Die Live-Tabelle zeigt den Stand der beendeten Spiele.")
-
-    sorted_live = sorted(live_scores.items(), key=lambda x: x[1], reverse=True)
-    
-    col_rz1, col_rz2 = st.columns([1, 1])
-    with col_rz1:
-        st.markdown("### 🏆 Live-Tabelle (Inkl. Führungspunkte)")
-        for r_idx, (u, l_pts) in enumerate(sorted_live, 1):
-            diff = l_pts - scores[u]
-            diff_text = f" <span style='color:#f43f5e; font-size:0.9rem;'>(+{diff} Live!)</span>" if diff > 0 else ""
-            st.markdown(f"""
-                <div class='redzone-card'>
-                    <div style='display:flex; justify-content:space-between; align-items:center;'>
-                        <span style='font-size:1.1rem; font-weight:bold;'>#{r_idx} {u} {diff_text}</span>
-                        <span style='font-size:1.4rem; font-weight:bold; color:#f43f5e;'>{l_pts} Pkt</span>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-    with col_rz2:
-        st.markdown("### 📺 Aktuelle Live-Spiele & Trends")
-        for g in nfl_games:
-            if g['in_progress']:
-                st.markdown(f"""
-                    <div class='game-card' style='border-color: #f43f5e;'>
-                        <div style='color:#f43f5e; font-weight:bold; margin-bottom:5px;'>🔴 LIVE: {g['status_detail']}</div>
-                        <div style='display:flex; justify-content:space-between; align-items:center;'>
-                            <span><b>{g['home_team']}</b> ({g['home_score']})</span>
-                            <span style='font-size:1.2rem; font-weight:bold;'>VS</span>
-                            <span><b>{g['away_team']}</b> ({g['away_score']})</span>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-            elif g['completed']:
-                st.caption(f"✅ Beendet: {g['matchup']} — Endstand: {g['home_score']}:{g['away_score']}")
-
-# --- TAB 3: HOST-KALENDER ---
-with tab3:
-    st.subheader("🏠 Football-Homezone — Bei wem schauen wir Sonntags?")
-    current_wk_str = str(current_default_week)
-    col_h1, col_h2 = st.columns(2)
-    for w_idx in range(1, 19):
-        w_str = str(w_idx)
-        sunday_date = WEEK_SUNDAYS[w_str]
-        host_name = hosts_db.get(w_str, "Noch offen")
-        target_col = col_h1 if w_idx % 2 != 0 else col_h2
-        is_next = (w_str == current_wk_str)
-        card_class = "host-card host-card-next" if is_next else "host-card"
-        next_badge = " 🔥 <span style='color:#38bdf8; font-weight:bold;'>(Nächster Sonntag!)</span>" if is_next else ""
-        
-        with target_col:
-            st.markdown(f"""
-                <div class='{card_class}'>
-                    <div>
-                        <div style='font-size: 1.1rem; font-weight: 800; color: #f8fafc;'>
-                            Woche {w_idx} — 📅 {sunday_date} {next_badge}
-                        </div>
-                        <div style='font-size: 0.95rem; color: #94a3b8;'>
-                            Gastgeber: <b style='color: #38bdf8;'>{host_name}</b>
-                        </div>
-                    </div>
-                    <div style='font-size: 1.8rem;'>🏠</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    with st.expander("📝 Gastgeber eintragen / anpassen"):
-        with st.form("host_form"):
-            new_hosts = hosts_db.copy()
-            col_f1, col_f2 = st.columns(2)
-            for w_i in range(1, 19):
-                w_s = str(w_i)
-                t_col = col_f1 if w_i <= 9 else col_f2
-                host_options = ["Noch offen"] + MITSPIELER
-                current_host = hosts_db.get(w_s, "Noch offen")
-                idx_h = host_options.index(current_host) if current_host in host_options else 0
-                with t_col:
-                    new_hosts[w_s] = st.selectbox(f"Woche {w_i} ({WEEK_SUNDAYS[w_s]}):", host_options, index=idx_h, key=f"host_select_{w_s}")
-            if st.form_submit_button("💾 Gastgeber-Kalender speichern"):
-                hosts_db = new_hosts
-                if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
-                    st.success("✅ **Gastgeber-Kalender erfolgreich gespeichert!**")
-                    st.rerun()
-
-# --- TAB 4: SAISONVERLAUF ---
-with tab4:
-    st.subheader("📈 Der Kampf um die Krone (Punkteverlauf)")
-    history_data = {u: [0] for u in MITSPIELER}
-    for w in range(1, woche + 1):
-        w_games = get_nfl_games(week_num=w)
-        w_scores, _ = calculate_scores(w_games, week_num=w)
-        for u in MITSPIELER:
-            prev = history_data[u][-1]
-            history_data[u].append(prev + w_scores[u])
-            
-    chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
-    st.line_chart(chart_df)
-
-# --- TAB 5 - TIPP ANALYTICS & TRENDS ---
-with tab5:
-    st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
-    st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
-    
-    all_picked_teams = []
-    for u in MITSPIELER:
-        for game_id, team in tipps_db.get(u, {}).items():
-            if team and team != "-":
-                all_picked_teams.append(team)
-                
-    col_an1, col_an2 = st.columns(2)
-    with col_an1:
-        st.markdown("### 🔝 Top-5 Lieblingsteams der Gruppe")
-        if all_picked_teams:
-            team_counts = pd.Series(all_picked_teams).value_counts().head(5)
-            st.bar_chart(team_counts)
-        else:
-            st.info("Noch keine echten Tippdaten vorhanden.")
-
-    with col_an2:
-        st.markdown("### 🤝 Tipp-Übereinstimmung (Agreement Rate)")
-        matrix_data = {}
-        for u1 in MITSPIELER:
-            row = {}
-            for u2 in MITSPIELER:
-                tipps1 = tipps_db.get(u1, {})
-                tipps2 = tipps_db.get(u2, {})
-                common = set(tipps1.keys()) & set(tipps2.keys())
-                if common:
-                    matches = sum(1 for k in common if tipps1[k] == tipps2[k])
-                    pct = int((matches / len(common)) * 100)
-                else:
-                    pct = 100 if u1 == u2 else 0
-                row[u2] = f"{pct}%"
-            matrix_data[u1] = row
-            
-        df_matrix = pd.DataFrame(matrix_data)
-        st.dataframe(df_matrix, use_container_width=True)
-        st.caption("Zeigt in %, wie oft zwei Mitspieler exakt dieselben Sieger getippt haben.")
-
-# --- TAB 6 - PLAYOFF BRACKET & POSTSEASON ---
-with tab6:
-    st.subheader("🏆 NFL Playoff Bracket & Postseason Multiplikatoren")
-    st.info("🔥 In den Playoffs steigen die Punkte pro richtigem Tipp! Wild Card: 2x Punkte | Super Bowl LXI: 3x Punkte!")
-    
-    col_b1, col_b2, col_b3, col_b4 = st.columns(4)
-    with col_b1:
-        st.markdown("#### Wild Card Round (2x)")
-        st.markdown("<div class='bracket-node'>AFC Wild Card 1</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>AFC Wild Card 2</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>NFC Wild Card 1</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>NFC Wild Card 2</div>", unsafe_allow_html=True)
-    with col_b2:
-        st.markdown("#### Divisional Round (2x)")
-        st.markdown("<div class='bracket-node'>AFC Divisional 1</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>NFC Divisional 1</div>", unsafe_allow_html=True)
-    with col_b3:
-        st.markdown("#### Conference Finals (2.5x)")
-        st.markdown("<div class='bracket-node'>👑 AFC Championship</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>👑 NFC Championship</div>", unsafe_allow_html=True)
-    with col_b4:
-        st.markdown("#### Super Bowl LXI (3x)")
-        st.markdown("<div class='bracket-node' style='border-color:#f59e0b; color:#f59e0b;'>🏈 SUPER BOWL CHAMPION</div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("### 🎯 Dein Super Bowl Champion Tipp (25 Bonuspunkte)")
-    u_playoff_pick = playoff_db.get(active_user, {}).get("sb_winner", "")
-    with st.form("sb_winner_form"):
-        sb_choice = st.text_input("Wer gewinnt den Super Bowl LXI?", value=u_playoff_pick)
-        if st.form_submit_button("🏆 Super Bowl Tipp speichern"):
-            if active_user not in playoff_db: playoff_db[active_user] = {}
-            playoff_db[active_user]["sb_winner"] = sb_choice.strip()
-            save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db)
-            st.success(f"✅ Super Bowl Tipp '{sb_choice}' für {active_user} gespeichert!")
-
-# --- TAB 7: HEAD-TO-HEAD & TRASH TALK ---
-with tab7:
-    st.subheader("⚔️ Head-to-Head Vergleich")
-    col_p1, col_p2 = st.columns(2)
-    with col_p1: p1 = st.selectbox("Spieler 1:", MITSPIELER, index=0)
-    with col_p2: p2 = st.selectbox("Spieler 2:", MITSPIELER, index=1)
-    
-    if p1 != p2:
-        diff_count = 0
-        st.markdown(f"**Vergleich für Woche {woche}:**")
-        for g in nfl_games:
-            t1 = tipps_db.get(p1, {}).get(g['id'], "-")
-            t2 = tipps_db.get(p2, {}).get(g['id'], "-")
-            if t1 != t2 and is_after_thursday_noon:
-                diff_count += 1
-                st.info(f"⚡ **{g['matchup']}**: {p1} setzt auf **{t1}** 🆚 {p2} setzt auf **{t2}**")
-        if diff_count == 0 and is_after_thursday_noon:
-            st.success("Beide Spieler haben in dieser Woche exakt dieselben Teams getippt!")
-        elif not is_after_thursday_noon:
-            st.warning("🔒 Der direkte Tipp-Vergleich schaltet sich am Donnerstag um 12:00 Uhr frei!")
-
-    st.markdown("---")
-    st.subheader("💬 Trash Talk Pinnwand")
-    w_comments = comments_db.get(str(woche), DEFAULT_COMMENTS.get(str(woche), []))
-    for c in w_comments:
-        st.markdown(f"<div class='chat-bubble'><b>{c['user']}:</b> {c['text']} <span style='font-size:0.75rem; color:#94a3b8;'>({c['time']})</span></div>", unsafe_allow_html=True)
-        
-    st.markdown("##### ✏️ Spruch auf die Pinnwand posten:")
-    with st.form("comment_form"):
-        st.write(f"Posten als: **{active_user}**")
-        c_text = st.text_input("Dein Spruch / Kommentar zur Woche:")
-        if st.form_submit_button("💬 Kommentar posten"):
-            if c_text.strip():
-                if str(woche) not in comments_db:
-                    comments_db[str(woche)] = []
-                comments_db[str(woche)].append({
-                    "user": active_user,
-                    "text": c_text.strip(),
-                    "time": datetime.now().strftime("%H:%M")
-                })
-                save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db)
-                st.success("Spruch gepostet!")
-                st.rerun()
-
-# --- TAB 8: TABLEARISCHE UBERSICHT ---
-with tab8:
-    st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
-    show_demo = st.checkbox("💡 DEMO-MODUS ANZEIGEN (Vorschau für die Gruppe)", value=not is_after_thursday_noon)
-
-    def style_team_colors(val):
-        clean_val = str(val).replace(" 🃏 2x", "").strip()
-        bg_color = TEAM_COLORS.get(clean_val, "#334155")
-        text_color = "#0f172a" if clean_val in ["PIT", "NO"] else "#ffffff"
-        style = f'background-color: {bg_color}; color: {text_color}; font-weight: bold; border-radius: 6px;'
-        if "🃏" in str(val):
-            style += ' border: 2.5px solid #f59e0b; box-shadow: 0 0 8px #f59e0b;'
-        return style
-
-    if show_demo:
-        st.markdown("<div class='demo-banner'>⚡ VORSCHAU: Tipp-Übersicht in den echten Team-Farben! ⚡</div>", unsafe_allow_html=True)
-        demo_games = [
-            {"Matchup": "Chiefs (KC) vs. Eagles (PHI)", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 2x", "Domi": "PHI 🃏 2x", "Pädu": "KC"},
-            {"Matchup": "49ers (SF) vs. Cowboys (DAL)", "Andy": "SF", "Ronny": "SF", "Bauzzen": "SF", "Bössi": "DAL", "Jerome": "SF", "Mäni": "DAL", "Domi": "SF", "Pädu": "SF"},
-            {"Matchup": "Lions (DET) vs. Packers (GB)", "Andy": "DET", "Ronny": "GB", "Bauzzen": "DET", "Bössi": "DET", "Jerome": "GB", "Mäni": "GB", "Domi": "DET", "Pädu": "DET"},
-            {"Matchup": "Bills (BUF) vs. Dolphins (MIA)", "Andy": "BUF", "Ronny": "BUF", "Bauzzen": "MIA", "Bössi": "BUF", "Jerome": "BUF", "Mäni": "BUF", "Domi": "MIA", "Pädu": "BUF"},
-            {"Matchup": "Ravens (BAL) vs. Bengals (CIN)", "Andy": "BAL", "Ronny": "BAL", "Bauzzen": "BAL", "Bössi": "CIN", "Jerome": "BAL", "Mäni": "CIN", "Domi": "BAL", "Pädu": "BAL"}
-        ]
-        df_demo = pd.DataFrame(demo_games)
-        styled_df = df_demo.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
-        st.dataframe(styled_df, use_container_width=True, height=280)
-    elif not is_after_thursday_noon:
-        st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
-    else:
-        if not nfl_games:
-            st.info("Keine Spiele gefunden.")
-        else:
-            table_data = []
-            for g in nfl_games:
-                row = {"Begegnung": g['matchup'], "Status": g['status_detail']}
-                for u in MITSPIELER:
-                    t = tipps_db.get(u, {}).get(g['id'], "-")
-                    if joker_db.get(u, {}).get(str(woche)) == g['id']:
-                        t += " 🃏 2x"
-                    row[u] = t
-                table_data.append(row)
-            df_table = pd.DataFrame(table_data)
-            styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
-            st.dataframe(styled_real_df, use_container_width=True)
-
-# --- TAB 9: SPIELPLAN & SCORES ---
-with tab9:
-    st.subheader(f"🏈 NFL Game Center — Woche {woche}")
-    if not nfl_games:
-        st.info("Keine Begegnungen für diese Woche gefunden.")
-    else:
-        col_a, col_b = st.columns(2)
-        for idx, g in enumerate(nfl_games):
-            target_col = col_a if idx % 2 == 0 else col_b
-            is_completed = g['completed']
-            h_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['home_abbr'] else ""
-            a_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['away_abbr'] else ""
-            
-            with target_col:
-                st.markdown(f"""
-                    <div class='schedule-card'>
-                        <div style='text-align: center; color: #94a3b8; font-size: 0.85rem; font-weight: 700; margin-bottom: 12px; letter-spacing: 0.5px;'>
-                            {g['status_detail']}
-                        </div>
-                        <div style='display: flex; justify-content: space-between; align-items: center;'>
-                            <div class='team-box'>
-                                <img src='{g['home_logo']}' width='45'>
-                                <span class='team-name {h_win}'>{g['home_team']}</span>
-                            </div>
-                            <div class='score-badge'>{g['home_score']} : {g['away_score']}</div>
-                            <div class='team-box' style='flex-direction: row-reverse;'>
-                                <img src='{g['away_logo']}' width='45'>
-                                <span class='team-name {a_win}'>{g['away_team']}</span>
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-
-# --- TAB 10: TIPPEN & BONUSTIPPS ---
-with tab10:
     st.subheader(f"Tipps abgeben für {active_user}")
     if is_after_thursday_noon:
         st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
@@ -851,3 +516,339 @@ with tab10:
             bonus_db[active_user] = new_b
             if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
                 st.success(f"✅ Bonustipps für **{active_user}** wurden gespeichert!")
+
+# --- TAB 2: LEADERBOARD ---
+with tab2:
+    st.subheader(f"Gesamtwertung — Woche {woche}")
+    for rank, (user, score) in enumerate(sorted_scores, 1):
+        badge = "🥇" if rank == 1 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
+        fire = " 🔥 ON FIRE (+10 Bonus!)" if hits[user] >= 6 else ""
+        joker_badge = " 🃏 (Joker-Berechtigt!)" if user in bottom_two else ""
+        
+        st.markdown(f"""
+            <div class='leaderboard-card'>
+                <div>
+                    <span style='font-size: 1.3rem; font-weight: bold;'>{badge} {user}</span>
+                    <span style='color: #4ade80; font-weight: bold; margin-left: 10px;'>{fire}</span>
+                    <span style='color: #f59e0b; font-weight: bold; margin-left: 10px;'>{joker_badge}</span>
+                </div>
+                <div style='font-size: 1.5rem; font-weight: 800; color: #38bdf8;'>
+                    {score} <span style='font-size: 0.9rem; color: #cbd5e1;'>Pkt</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+# --- TAB 3: TIPP-ÜBERSICHT ---
+with tab3:
+    st.subheader(f"Tipp-Vergleich aller 8 Mitspieler")
+    show_demo = st.checkbox("💡 DEMO-MODUS ANZEIGEN (Vorschau für die Gruppe)", value=not is_after_thursday_noon)
+
+    def style_team_colors(val):
+        clean_val = str(val).replace(" 🃏 2x", "").strip()
+        bg_color = TEAM_COLORS.get(clean_val, "#334155")
+        text_color = "#0f172a" if clean_val in ["PIT", "NO"] else "#ffffff"
+        style = f'background-color: {bg_color}; color: {text_color}; font-weight: bold; border-radius: 6px;'
+        if "🃏" in str(val):
+            style += ' border: 2.5px solid #f59e0b; box-shadow: 0 0 8px #f59e0b;'
+        return style
+
+    if show_demo:
+        st.markdown("<div class='demo-banner'>⚡ VORSCHAU: Tipp-Übersicht in den echten Team-Farben! ⚡</div>", unsafe_allow_html=True)
+        demo_games = [
+            {"Matchup": "Chiefs (KC) vs. Eagles (PHI)", "Andy": "KC", "Ronny": "KC", "Bauzzen": "PHI", "Bössi": "KC", "Jerome": "PHI", "Mäni": "KC 🃏 2x", "Domi": "PHI 🃏 2x", "Pädu": "KC"},
+            {"Matchup": "49ers (SF) vs. Cowboys (DAL)", "Andy": "SF", "Ronny": "SF", "Bauzzen": "SF", "Bössi": "DAL", "Jerome": "SF", "Mäni": "DAL", "Domi": "SF", "Pädu": "SF"},
+            {"Matchup": "Lions (DET) vs. Packers (GB)", "Andy": "DET", "Ronny": "GB", "Bauzzen": "DET", "Bössi": "DET", "Jerome": "GB", "Mäni": "GB", "Domi": "DET", "Pädu": "DET"},
+            {"Matchup": "Bills (BUF) vs. Dolphins (MIA)", "Andy": "BUF", "Ronny": "BUF", "Bauzzen": "MIA", "Bössi": "BUF", "Jerome": "BUF", "Mäni": "BUF", "Domi": "MIA", "Pädu": "BUF"},
+            {"Matchup": "Ravens (BAL) vs. Bengals (CIN)", "Andy": "BAL", "Ronny": "BAL", "Bauzzen": "BAL", "Bössi": "CIN", "Jerome": "BAL", "Mäni": "CIN", "Domi": "BAL", "Pädu": "BAL"}
+        ]
+        df_demo = pd.DataFrame(demo_games)
+        styled_df = df_demo.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
+        st.dataframe(styled_df, use_container_width=True, height=280)
+    elif not is_after_thursday_noon:
+        st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
+    else:
+        if not nfl_games:
+            st.info("Keine Spiele gefunden.")
+        else:
+            table_data = []
+            for g in nfl_games:
+                row = {"Begegnung": g['matchup'], "Status": g['status_detail']}
+                for u in MITSPIELER:
+                    t = tipps_db.get(u, {}).get(g['id'], "-")
+                    if joker_db.get(u, {}).get(str(woche)) == g['id']:
+                        t += " 🃏 2x"
+                    row[u] = t
+                table_data.append(row)
+            df_table = pd.DataFrame(table_data)
+            styled_real_df = df_table.style.apply(lambda col: [style_team_colors(v) for v in col] if col.name in MITSPIELER else [''] * len(col))
+            st.dataframe(styled_real_df, use_container_width=True)
+
+# --- TAB 4: REDZONE LIVE ---
+with tab4:
+    st.subheader(f"🚨 RedZone Live Center — Spieltag {woche}")
+    st.caption("Echtzeit-Berechnung der Punkte während der laufenden NFL-Spiele!")
+    
+    live_scores = scores.copy()
+    live_games_count = 0
+    
+    for g in nfl_games:
+        if g['in_progress'] and g['leading_abbr']:
+            live_games_count += 1
+            for u in MITSPIELER:
+                if tipps_db.get(u, {}).get(g['id']) == g['leading_abbr']:
+                    j_mult = 2 if joker_db.get(u, {}).get(str(woche)) == g['id'] else 1
+                    live_scores[u] += 5 * j_mult
+
+    if live_games_count > 0:
+        st.error(f"🔴 **LIVE IN PROGRESS:** {live_games_count} Spiel(e) laufen aktuell!")
+    else:
+        st.info("ℹ️ Aktuell laufen keine Live-Spiele. Die Live-Tabelle zeigt den Stand der beendeten Spiele.")
+
+    sorted_live = sorted(live_scores.items(), key=lambda x: x[1], reverse=True)
+    
+    col_rz1, col_rz2 = st.columns([1, 1])
+    with col_rz1:
+        st.markdown("### 🏆 Live-Tabelle (Inkl. Führungspunkte)")
+        for r_idx, (u, l_pts) in enumerate(sorted_live, 1):
+            diff = l_pts - scores[u]
+            diff_text = f" <span style='color:#f43f5e; font-size:0.9rem;'>(+{diff} Live!)</span>" if diff > 0 else ""
+            st.markdown(f"""
+                <div class='redzone-card'>
+                    <div style='display:flex; justify-content:space-between; align-items:center;'>
+                        <span style='font-size:1.1rem; font-weight:bold;'>#{r_idx} {u} {diff_text}</span>
+                        <span style='font-size:1.4rem; font-weight:bold; color:#f43f5e;'>{l_pts} Pkt</span>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+    with col_rz2:
+        st.markdown("### 📺 Aktuelle Live-Spiele & Trends")
+        for g in nfl_games:
+            if g['in_progress']:
+                st.markdown(f"""
+                    <div class='game-card' style='border-color: #f43f5e;'>
+                        <div style='color:#f43f5e; font-weight:bold; margin-bottom:5px;'>🔴 LIVE: {g['status_detail']}</div>
+                        <div style='display:flex; justify-content:space-between; align-items:center;'>
+                            <span><b>{g['home_team']}</b> ({g['home_score']})</span>
+                            <span style='font-size:1.2rem; font-weight:bold;'>VS</span>
+                            <span><b>{g['away_team']}</b> ({g['away_score']})</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            elif g['completed']:
+                st.caption(f"✅ Beendet: {g['matchup']} — Endstand: {g['home_score']}:{g['away_score']}")
+
+# --- TAB 5: HEAD-TO-HEAD & TRASH TALK ---
+with tab5:
+    st.subheader("⚔️ Head-to-Head Vergleich")
+    col_p1, col_p2 = st.columns(2)
+    with col_p1: p1 = st.selectbox("Spieler 1:", MITSPIELER, index=0)
+    with col_p2: p2 = st.selectbox("Spieler 2:", MITSPIELER, index=1)
+    
+    if p1 != p2:
+        diff_count = 0
+        st.markdown(f"**Vergleich für Woche {woche}:**")
+        for g in nfl_games:
+            t1 = tipps_db.get(p1, {}).get(g['id'], "-")
+            t2 = tipps_db.get(p2, {}).get(g['id'], "-")
+            if t1 != t2 and is_after_thursday_noon:
+                diff_count += 1
+                st.info(f"⚡ **{g['matchup']}**: {p1} setzt auf **{t1}** 🆚 {p2} setzt auf **{t2}**")
+        if diff_count == 0 and is_after_thursday_noon:
+            st.success("Beide Spieler haben in dieser Woche exakt dieselben Teams getippt!")
+        elif not is_after_thursday_noon:
+            st.warning("🔒 Der direkte Tipp-Vergleich schaltet sich am Donnerstag um 12:00 Uhr frei!")
+
+    st.markdown("---")
+    st.subheader("💬 Trash Talk Pinnwand")
+    w_comments = comments_db.get(str(woche), DEFAULT_COMMENTS.get(str(woche), []))
+    for c in w_comments:
+        st.markdown(f"<div class='chat-bubble'><b>{c['user']}:</b> {c['text']} <span style='font-size:0.75rem; color:#94a3b8;'>({c['time']})</span></div>", unsafe_allow_html=True)
+        
+    st.markdown("##### ✏️ Spruch auf die Pinnwand posten:")
+    with st.form("comment_form"):
+        st.write(f"Posten als: **{active_user}**")
+        c_text = st.text_input("Dein Spruch / Kommentar zur Woche:")
+        if st.form_submit_button("💬 Kommentar posten"):
+            if c_text.strip():
+                if str(woche) not in comments_db:
+                    comments_db[str(woche)] = []
+                comments_db[str(woche)].append({
+                    "user": active_user,
+                    "text": c_text.strip(),
+                    "time": datetime.now().strftime("%H:%M")
+                })
+                save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db)
+                st.success("Spruch gepostet!")
+                st.rerun()
+
+# --- TAB 6: HOST-KALENDER ---
+with tab6:
+    st.subheader("🏠 Football-Homezone — Bei wem schauen wir Sonntags?")
+    current_wk_str = str(current_default_week)
+    col_h1, col_h2 = st.columns(2)
+    for w_idx in range(1, 19):
+        w_str = str(w_idx)
+        sunday_date = WEEK_SUNDAYS[w_str]
+        host_name = hosts_db.get(w_str, "Noch offen")
+        target_col = col_h1 if w_idx % 2 != 0 else col_h2
+        is_next = (w_str == current_wk_str)
+        card_class = "host-card host-card-next" if is_next else "host-card"
+        next_badge = " 🔥 <span style='color:#38bdf8; font-weight:bold;'>(Nächster Sonntag!)</span>" if is_next else ""
+        
+        with target_col:
+            st.markdown(f"""
+                <div class='{card_class}'>
+                    <div>
+                        <div style='font-size: 1.1rem; font-weight: 800; color: #f8fafc;'>
+                            Woche {w_idx} — 📅 {sunday_date} {next_badge}
+                        </div>
+                        <div style='font-size: 0.95rem; color: #94a3b8;'>
+                            Gastgeber: <b style='color: #38bdf8;'>{host_name}</b>
+                        </div>
+                    </div>
+                    <div style='font-size: 1.8rem;'>🏠</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    with st.expander("📝 Gastgeber eintragen / anpassen"):
+        with st.form("host_form"):
+            new_hosts = hosts_db.copy()
+            col_f1, col_f2 = st.columns(2)
+            for w_i in range(1, 19):
+                w_s = str(w_i)
+                t_col = col_f1 if w_i <= 9 else col_f2
+                host_options = ["Noch offen"] + MITSPIELER
+                current_host = hosts_db.get(w_s, "Noch offen")
+                idx_h = host_options.index(current_host) if current_host in host_options else 0
+                with t_col:
+                    new_hosts[w_s] = st.selectbox(f"Woche {w_i} ({WEEK_SUNDAYS[w_s]}):", host_options, index=idx_h, key=f"host_select_{w_s}")
+            if st.form_submit_button("💾 Gastgeber-Kalender speichern"):
+                hosts_db = new_hosts
+                if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
+                    st.success("✅ **Gastgeber-Kalender erfolgreich gespeichert!**")
+                    st.rerun()
+
+# --- TAB 7: SPIELPLAN & SCORES ---
+with tab7:
+    st.subheader(f"🏈 NFL Game Center — Woche {woche}")
+    if not nfl_games:
+        st.info("Keine Begegnungen für diese Woche gefunden.")
+    else:
+        col_a, col_b = st.columns(2)
+        for idx, g in enumerate(nfl_games):
+            target_col = col_a if idx % 2 == 0 else col_b
+            is_completed = g['completed']
+            h_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['home_abbr'] else ""
+            a_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['away_abbr'] else ""
+            
+            with target_col:
+                st.markdown(f"""
+                    <div class='schedule-card'>
+                        <div style='text-align: center; color: #94a3b8; font-size: 0.85rem; font-weight: 700; margin-bottom: 12px; letter-spacing: 0.5px;'>
+                            {g['status_detail']}
+                        </div>
+                        <div style='display: flex; justify-content: space-between; align-items: center;'>
+                            <div class='team-box'>
+                                <img src='{g['home_logo']}' width='45'>
+                                <span class='team-name {h_win}'>{g['home_team']}</span>
+                            </div>
+                            <div class='score-badge'>{g['home_score']} : {g['away_score']}</div>
+                            <div class='team-box' style='flex-direction: row-reverse;'>
+                                <img src='{g['away_logo']}' width='45'>
+                                <span class='team-name {a_win}'>{g['away_team']}</span>
+                            </div>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+
+# --- TAB 8: SAISONVERLAUF ---
+with tab8:
+    st.subheader("📈 Der Kampf um die Krone (Punkteverlauf)")
+    history_data = {u: [0] for u in MITSPIELER}
+    for w in range(1, woche + 1):
+        w_games = get_nfl_games(week_num=w)
+        w_scores, _ = calculate_scores(w_games, week_num=w)
+        for u in MITSPIELER:
+            prev = history_data[u][-1]
+            history_data[u].append(prev + w_scores[u])
+            
+    chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
+    st.line_chart(chart_df)
+
+# --- TAB 9: TIPP ANALYTICS ---
+with tab9:
+    st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
+    st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
+    
+    all_picked_teams = []
+    for u in MITSPIELER:
+        for game_id, team in tipps_db.get(u, {}).items():
+            if team and team != "-":
+                all_picked_teams.append(team)
+                
+    col_an1, col_an2 = st.columns(2)
+    with col_an1:
+        st.markdown("### 🔝 Top-5 Lieblingsteams der Gruppe")
+        if all_picked_teams:
+            team_counts = pd.Series(all_picked_teams).value_counts().head(5)
+            st.bar_chart(team_counts)
+        else:
+            st.info("Noch keine echten Tippdaten vorhanden.")
+
+    with col_an2:
+        st.markdown("### 🤝 Tipp-Übereinstimmung (Agreement Rate)")
+        matrix_data = {}
+        for u1 in MITSPIELER:
+            row = {}
+            for u2 in MITSPIELER:
+                tipps1 = tipps_db.get(u1, {})
+                tipps2 = tipps_db.get(u2, {})
+                common = set(tipps1.keys()) & set(tipps2.keys())
+                if common:
+                    matches = sum(1 for k in common if tipps1[k] == tipps2[k])
+                    pct = int((matches / len(common)) * 100)
+                else:
+                    pct = 100 if u1 == u2 else 0
+                row[u2] = f"{pct}%"
+            matrix_data[u1] = row
+            
+        df_matrix = pd.DataFrame(matrix_data)
+        st.dataframe(df_matrix, use_container_width=True)
+        st.caption("Zeigt in %, wie oft zwei Mitspieler exakt dieselben Sieger getippt haben.")
+
+# --- TAB 10: PLAYOFF BRACKET ---
+with tab10:
+    st.subheader("🏆 NFL Playoff Bracket & Postseason Multiplikatoren")
+    st.info("🔥 In den Playoffs steigen die Punkte pro richtigem Tipp! Wild Card: 2x Punkte | Super Bowl LXI: 3x Punkte!")
+    
+    col_b1, col_b2, col_b3, col_b4 = st.columns(4)
+    with col_b1:
+        st.markdown("#### Wild Card Round (2x)")
+        st.markdown("<div class='bracket-node'>AFC Wild Card 1</div>", unsafe_allow_html=True)
+        st.markdown("<div class='bracket-node'>AFC Wild Card 2</div>", unsafe_allow_html=True)
+        st.markdown("<div class='bracket-node'>NFC Wild Card 1</div>", unsafe_allow_html=True)
+        st.markdown("<div class='bracket-node'>NFC Wild Card 2</div>", unsafe_allow_html=True)
+    with col_b2:
+        st.markdown("#### Divisional Round (2x)")
+        st.markdown("<div class='bracket-node'>AFC Divisional 1</div>", unsafe_allow_html=True)
+        st.markdown("<div class='bracket-node'>NFC Divisional 1</div>", unsafe_allow_html=True)
+    with col_b3:
+        st.markdown("#### Conference Finals (2.5x)")
+        st.markdown("<div class='bracket-node'>👑 AFC Championship</div>", unsafe_allow_html=True)
+        st.markdown("<div class='bracket-node'>👑 NFC Championship</div>", unsafe_allow_html=True)
+    with col_b4:
+        st.markdown("#### Super Bowl LXI (3x)")
+        st.markdown("<div class='bracket-node' style='border-color:#f59e0b; color:#f59e0b;'>🏈 SUPER BOWL CHAMPION</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🎯 Dein Super Bowl Champion Tipp (25 Bonuspunkte)")
+    u_playoff_pick = playoff_db.get(active_user, {}).get("sb_winner", "")
+    with st.form("sb_winner_form"):
+        sb_choice = st.text_input("Wer gewinnt den Super Bowl LXI?", value=u_playoff_pick)
+        if st.form_submit_button("🏆 Super Bowl Tipp speichern"):
+            if active_user not in playoff_db: playoff_db[active_user] = {}
+            playoff_db[active_user]["sb_winner"] = sb_choice.strip()
+            save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db)
+            st.success(f"✅ Super Bowl Tipp '{sb_choice}' für {active_user} gespeichert!")
