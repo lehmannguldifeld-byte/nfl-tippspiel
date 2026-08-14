@@ -165,13 +165,13 @@ BONUS_QUESTIONS = [
     "8) Team mit den meisten Punkten der Saison"
 ]
 
-# NFL Saison-Sonntage 2026/27 (Woche 1 bis 18)
+# NFL Saison-Sonntage 2026/27 (Woche 1 bis 18 - Start am 13.09.2026)
 WEEK_SUNDAYS = {
-    "1": "06.09.2026", "2": "13.09.2026", "3": "20.09.2026", "4": "27.09.2026",
-    "5": "04.10.2026", "6": "11.10.2026", "7": "18.10.2026", "8": "25.10.2026",
-    "9": "01.11.2026", "10": "08.11.2026", "11": "15.11.2026", "12": "22.11.2026",
-    "13": "29.11.2026", "14": "06.12.2026", "15": "13.12.2026", "16": "20.12.2026",
-    "17": "27.12.2026", "18": "03.01.2027"
+    "1": "13.09.2026", "2": "20.09.2026", "3": "27.09.2026", "4": "04.10.2026",
+    "5": "11.10.2026", "6": "18.10.2026", "7": "25.10.2026", "8": "01.11.2026",
+    "9": "08.11.2026", "10": "15.11.2026", "11": "22.11.2026", "12": "29.11.2026",
+    "13": "06.12.2026", "14": "13.12.2026", "15": "20.12.2026", "16": "27.12.2026",
+    "17": "03.01.2027", "18": "10.01.2027"
 }
 
 # --- DATENBANK VERWALTUNG ---
@@ -284,7 +284,7 @@ tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db = load_db()
 
 def get_current_nfl_week():
     now = datetime.now()
-    week1_deadline = datetime(2026, 9, 3, 12, 0, 0)
+    week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
     if now < week1_deadline:
         return 1
     days_diff = (now - week1_deadline).days
@@ -379,7 +379,7 @@ sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if len(sorted_scores) >= 2 else []
 
 now = datetime.now()
-week1_deadline = datetime(2026, 9, 3, 12, 0, 0)
+week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
 
 if woche == 1:
     is_after_thursday_noon = now >= week1_deadline
@@ -452,10 +452,10 @@ with tab2:
             """, unsafe_allow_html=True)
 
     st.markdown("---")
-    with st.expander("⚙️ Gastgeber eintragen / ändern"):
+    with st.expander("📝 Gastgeber eintragen / anpassen"):
+        st.write("Jeder in der Gruppe kann hier eintragen oder ändern, wer an welchem Sonntag Gastgeber ist:")
         with st.form("host_form"):
             new_hosts = hosts_db.copy()
-            st.write("Wähle für jeden Spieltag den Gastgeber aus:")
             
             col_f1, col_f2 = st.columns(2)
             for w_i in range(1, 19):
@@ -619,13 +619,13 @@ with tab6:
 # --- TAB 7: BONUSTIPPS & ADMIN BACKUP ---
 with tab7:
     st.subheader("🎯 Saison-Bonustipps (Je 15 Punkte)")
-    deadline = datetime(2026, 9, 2, 23, 59, 59)
+    deadline = datetime(2026, 9, 9, 23, 59, 59)
     can_edit_bonus = datetime.now() <= deadline
     
     if can_edit_bonus:
-        st.info("⏳ Die Bonustipps können bis zum **02.09.2026 um 23:59 Uhr** abgegeben/geändert werden.")
+        st.info("⏳ Die Bonustipps können bis zum **09.09.2026 um 23:59 Uhr** abgegeben/geändert werden.")
     else:
-        st.error("🔒 Die Abgabefrist für die Bonustipps (02.09.2026) ist abgelaufen!")
+        st.error("🔒 Die Abgabefrist für die Bonustipps (09.09.2026) ist abgelaufen!")
 
     st.success(f"Aktuell ausgewähltes Profil: **{active_user}**")
     u_bonus = bonus_db.get(active_user, {})
@@ -690,7 +690,7 @@ with tab8:
         st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
     else:
         if woche == 1:
-            st.info("⏳ Tippabgabe für Woche 1 offen! Frist: **Donnerstag, 03.09.2026 um 12:00 Uhr**.")
+            st.info("⏳ Tippabgabe für Woche 1 offen! Frist: **Donnerstag, 10.09.2026 um 12:00 Uhr**.")
         else:
             st.info(f"⏳ Tippabgabe offen! Deadline für Woche {woche}: Dieser Donnerstag um 12:00 Uhr mittags.")
 
