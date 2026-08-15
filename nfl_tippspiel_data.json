@@ -82,7 +82,16 @@
         "Bauzzen": {},
         "B\u00f6ssi": {},
         "Jerome": {},
-        "M\u00e4ni": {},
+        "M\u00e4ni": {
+            "q_0": "",
+            "q_1": "",
+            "q_2": "",
+            "q_3": "",
+            "q_4": "",
+            "q_5": "",
+            "q_6": "",
+            "q_7": ""
+        },
         "Domi": {},
         "P\u00e4du": {}
     },
@@ -148,5 +157,15 @@
         "16": "Noch offen",
         "17": "Noch offen",
         "18": "Noch offen"
+    },
+    "playoff_db": {
+        "Andy": {},
+        "Ronny": {},
+        "Bauzzen": {},
+        "B\u00f6ssi": {},
+        "Jerome": {},
+        "M\u00e4ni": {},
+        "Domi": {},
+        "P\u00e4du": {}
     }
 }
