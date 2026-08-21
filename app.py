@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import os
 import base64
+import urllib.parse
 
 # --- SEITEN-KONFIGURATION & STADION-FLUTLICHT DESIGN ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
@@ -152,6 +153,13 @@ st.markdown("""
         margin-bottom: 20px;
         text-align: center;
     }
+    .admin-box {
+        background: rgba(15, 23, 42, 0.95);
+        border: 2px solid #f59e0b;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
     .bracket-node {
         background: rgba(15, 23, 42, 0.9);
         border: 1px solid #0284c7;
@@ -199,7 +207,6 @@ if "logged_user" not in st.session_state:
 DB_FILE = "nfl_tippspiel_data.json"
 
 def clean_dict_data(data):
-    """Reinigt geladene Daten von alten/ungültigen Testeinträgen."""
     if not isinstance(data, dict):
         return {u: {} for u in MITSPIELER}
     cleaned = {u: {} for u in MITSPIELER}
@@ -455,8 +462,46 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🎯 Bonustipps"
 ])
 
-# --- TAB 1: SEHR KOMPAKTES TIPP-FORMULAR ---
+# --- TAB 1: SEHR KOMPAKTES TIPP-FORMULAR + ADMIN-ÜBERSICHT ---
 with tab1:
+    # 👑 ADMIN-KONTROLLZENTRUM FÜR PÄDU
+    if st.session_state["logged_user"] == "Pädu":
+        st.markdown("<div class='admin-box'>", unsafe_allow_html=True)
+        st.markdown(f"### 👑 Admin-Kontrollzentrum (Woche {woche})")
+        
+        game_ids_wk = [g['id'] for g in nfl_games]
+        total_games_wk = len(game_ids_wk)
+        
+        missing_users = []
+        done_users = []
+        
+        col_adm1, col_adm2 = st.columns(2)
+        with col_adm1:
+            st.write("📊 **Tipp-Status der 8 Mitspieler:**")
+            for u in MITSPIELER:
+                u_tipps = tipps_db.get(u, {})
+                count = sum(1 for g_id in game_ids_wk if u_tipps.get(g_id))
+                if count == total_games_wk and total_games_wk > 0:
+                    st.markdown(f"🟢 **{u}**: {count}/{total_games_wk} Tipps abgegeben ✅")
+                    done_users.append(u)
+                elif count > 0:
+                    st.markdown(f"🟡 **{u}**: {count}/{total_games_wk} Tipps (unvollständig)")
+                    missing_users.append(u)
+                else:
+                    st.markdown(f"🔴 **{u}**: Noch nicht getippt (0/{total_games_wk})")
+                    missing_users.append(u)
+                    
+        with col_adm2:
+            st.write("📲 **Gruppe benachrichtigen / erinnern:**")
+            if missing_users:
+                missing_str = ", ".join(missing_users)
+                msg = f"Hallo Leute! 🏈 Kurze Erinnerung für Woche {woche}: Folgende Spieler müssen noch tippen: {missing_str}. Deadline ist Donnerstag um 12:00 Uhr!"
+                encoded_msg = urllib.parse.quote(msg)
+                st.markdown(f'<a href="https://api.whatsapp.com/send?text={encoded_msg}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;">💬 WhatsApp-Erinnerung senden</button></a>', unsafe_allow_html=True)
+            else:
+                st.success("🎉 Genial! Alle 8 Mitspieler haben für Woche " + str(woche) + " vollständig getippt!")
+        st.markdown("</div>", unsafe_allow_html=True)
+
     if not st.session_state["logged_user"]:
         st.warning("🔑 Bitte logge dich oben ein, um deine Tipps abzugeben.")
     else:
@@ -797,7 +842,7 @@ with tab8:
     chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
     st.line_chart(chart_df)
 
-# --- TAB 9: TIPP ANALYTICS (NUR BEI VALIDEN ECHTEN NFL TEAMS) ---
+# --- TAB 9: TIPP ANALYTICS ---
 with tab9:
     st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
     st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
@@ -906,7 +951,7 @@ with tab10:
     # 3. ADMIN-BEREICH (NUR FÜR PÄDU ABSEHBAR/AUSFÜLLBAR)
     if st.session_state["logged_user"] == "Pädu":
         st.markdown("---")
-        with st.expander("⚙️ Admin-Bereich: Auswertung & Musterlösung (Nur für Pädu)"):
+        with st.expander("⚙️ Admin-Bereich: Auswertung, Musterlösung & RESET (Nur für Pädu)"):
             st.write("Trage hier die offiziellen Endergebnisse der Saison ein. Richtige Antworten geben automatisch **+15 Punkte** im Leaderboard!")
             with st.form("admin_bonus_form"):
                 admin_new_res = {}
@@ -918,3 +963,17 @@ with tab10:
                     if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
                         st.success("✅ **Musterlösung erfolgreich gespeichert! Punkte wurden neu berechnet.**")
                         st.rerun()
+
+            st.markdown("---")
+            st.markdown("#### 🚨 Datenbank komplett zurücksetzen")
+            st.warning("Achtung: Dieser Button löscht ALLE Tipp-Einträge, Bonustipps und Kommentare auf GitHub und setzt das Spiel auf 0 zurück!")
+            if st.button("🚨 ALLES ZURÜCKSETZEN (RESET)", type="primary"):
+                empty_tipps = {u: {} for u in MITSPIELER}
+                empty_bonus = {u: {} for u in MITSPIELER}
+                empty_joker = {u: {} for u in MITSPIELER}
+                empty_playoff = {u: {} for u in MITSPIELER}
+                empty_hosts = {w: "Noch offen" for w in WEEK_SUNDAYS.keys()}
+                
+                if save_db(empty_tipps, empty_bonus, {}, empty_joker, {}, empty_hosts, empty_playoff):
+                    st.success("💥 **DATENBANK ERFOLGREICH ZURÜCKGESETZT!** Die App ist jetzt komplett leer und bereit für die Saison.")
+                    st.rerun()
