@@ -11,6 +11,9 @@ import urllib.parse
 # --- SEITEN-KONFIGURATION & STADION-FLUTLICHT DESIGN ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
 
+# ESPN FANTASY LEAGUE CONFIG
+ESPN_LEAGUE_ID = "434475025"
+
 # --- OFFIZIELLE NFL TEAM FARBEN ---
 TEAM_COLORS = {
     "ARI": "#97233F", "ATL": "#A71930", "BAL": "#241773", "BUF": "#00338D",
@@ -307,7 +310,7 @@ def get_current_nfl_week():
 
 current_default_week = get_current_nfl_week()
 
-# --- ESPN API ---
+# --- ESPN API FOR NFL GAMES ---
 @st.cache_data(ttl=300)
 def get_nfl_games(week_num=1, season_type=2):
     season_year = 2026
@@ -353,6 +356,77 @@ def get_nfl_games(week_num=1, season_type=2):
         return games
     except Exception:
         return []
+
+# --- ESPN FANTASY LEAGUE API FETCH ---
+@st.cache_data(ttl=120)
+def fetch_espn_fantasy_data(league_id, season_year=2026):
+    url = f"https://fantasy.espn.com/apis/v3/games/ffl/seasons/{season_year}/segments/0/leagues/{league_id}?view=mMatchupScore&view=mScoreboard&view=mTeam&view=mSettings"
+    
+    cookies = {}
+    espn_s2 = st.secrets.get("ESPN_S2")
+    swid = st.secrets.get("ESPN_SWID")
+    if espn_s2 and swid:
+        cookies = {"espn_s2": espn_s2, "SWID": swid}
+
+    try:
+        res = requests.get(url, cookies=cookies)
+        if res.status_code != 200:
+            return None, "Error: " + str(res.status_code)
+        data = res.json()
+        
+        teams_map = {}
+        teams_list = []
+        for t in data.get('teams', []):
+            name = f"{t.get('location', '')} {t.get('nickname', '')}".strip()
+            if not name:
+                name = f"Team {t.get('id')}"
+            logo = t.get('logo', '')
+            record = t.get('record', {}).get('overall', {})
+            wins = record.get('wins', 0)
+            losses = record.get('losses', 0)
+            ties = record.get('ties', 0)
+            points = record.get('pointsFor', 0.0)
+            
+            teams_map[t['id']] = {'name': name, 'logo': logo}
+            teams_list.append({
+                'Team': name,
+                'W': wins,
+                'L': losses,
+                'T': ties,
+                'Punkte': round(points, 1)
+            })
+
+        scoring_period = data.get('scoringPeriodId', 1)
+        schedule = data.get('schedule', [])
+        
+        current_matchups = []
+        for m in schedule:
+            if m.get('matchupPeriodId') == scoring_period:
+                h_id = m.get('home', {}).get('teamId')
+                a_id = m.get('away', {}).get('teamId')
+                h_score = m.get('home', {}).get('totalPoints', 0.0)
+                a_score = m.get('away', {}).get('totalPoints', 0.0)
+                
+                home_team_info = teams_map.get(h_id, {'name': f"Team {h_id}", 'logo': ''})
+                away_team_info = teams_map.get(a_id, {'name': f"Team {a_id}", 'logo': ''})
+                
+                current_matchups.append({
+                    'home_name': home_team_info['name'],
+                    'home_logo': home_team_info['logo'],
+                    'home_score': round(h_score, 2),
+                    'away_name': away_team_info['name'],
+                    'away_logo': away_team_info['logo'],
+                    'away_score': round(a_score, 2)
+                })
+                
+        return {
+            'league_name': data.get('settings', {}).get('name', 'ESPN Fantasy League'),
+            'week': scoring_period,
+            'matchups': current_matchups,
+            'standings': teams_list
+        }, None
+    except Exception as e:
+        return None, str(e)
 
 # --- PUNKTE LOGIK ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1):
@@ -440,7 +514,7 @@ else:
 
 can_edit_bonus = now < bonus_deadline
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "🏈 Tippen", 
     "📊 Leaderboard", 
     "📋 Tipp-Übersicht", 
@@ -450,10 +524,11 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🗓️ Spielplan & Scores", 
     "📈 Saisonverlauf", 
     "📊 Tipp-Analytics", 
-    "🎯 Bonustipps"
+    "🎯 Bonustipps",
+    "🏈 ESPN Fantasy"
 ])
 
-# --- TAB 1: SEHR KOMPAKTES TIPP-FORMULAR + ADMIN-ÜBERSICHT ---
+# --- TAB 1: TIPP-FORMULAR + ADMIN ---
 with tab1:
     if st.session_state["logged_user"] == "Pädu":
         st.markdown("<div class='admin-box'>", unsafe_allow_html=True)
@@ -961,3 +1036,53 @@ with tab10:
                 if save_db(empty_tipps, empty_bonus, {}, empty_joker, {}, empty_hosts, empty_playoff):
                     st.success("💥 **DATENBANK ERFOLGREICH ZURÜCKGESETZT!** Die App ist jetzt komplett leer und bereit für die Saison.")
                     st.rerun()
+
+# --- TAB 11: ESPN FANTASY INTEGRATION ---
+with tab11:
+    st.subheader("🏈 ESPN Fantasy Football Live Center")
+    st.caption(f"Angebunden an ESPN League ID: **{ESPN_LEAGUE_ID}**")
+    
+    fantasy_data, err_msg = fetch_espn_fantasy_data(ESPN_LEAGUE_ID)
+    
+    if err_msg or not fantasy_data:
+        st.error("⚠️ **ESPN Liga nicht erreichbar oder als Privat markiert.**")
+        st.info("""
+            **So machst du eure Liga öffentlich (Empfohlen):**
+            1. Logge dich auf `fantasy.espn.com` ein.
+            2. Gehe zu **League** -> **Settings**.
+            3. Ändere die Sichtbarkeit unter **Make League Viewable to Public** auf **Yes**.
+            
+            *Falls die Liga privat bleiben soll, trage deinen `ESPN_S2` und `SWID` Cookie in Streamlit Secrets ein.*
+        """)
+    else:
+        st.success(f"🏆 **{fantasy_data['league_name']}** — Spieltag {fantasy_data['week']}")
+        
+        st.markdown("### ⚔️ Live-Matchups dieser Woche")
+        if not fantasy_data['matchups']:
+            st.info("Keine aktiven Matchups für diese Woche gefunden.")
+        else:
+            col_f1, col_f2 = st.columns(2)
+            for idx, m in enumerate(fantasy_data['matchups']):
+                target_col = col_f1 if idx % 2 == 0 else col_f2
+                with target_col:
+                    st.markdown(f"""
+                        <div class='schedule-card'>
+                            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                <div style='display: flex; align-items: center; gap: 8px;'>
+                                    {'<img src="' + m['home_logo'] + '" width="30">' if m['home_logo'] else ''}
+                                    <b>{m['home_name']}</b>
+                                </div>
+                                <div class='score-badge'>{m['home_score']} : {m['away_score']}</div>
+                                <div style='display: flex; align-items: center; gap: 8px;'>
+                                    <b>{m['away_name']}</b>
+                                    {'<img src="' + m['away_logo'] + '" width="30">' if m['away_logo'] else ''}
+                                </div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+        st.markdown("---")
+        st.markdown("### 📊 Aktuelle Fantasy-Tabelle (Standings)")
+        if fantasy_data['standings']:
+            df_standings = pd.DataFrame(fantasy_data['standings'])
+            st.dataframe(df_standings, use_container_width=True)
