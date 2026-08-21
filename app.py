@@ -509,7 +509,7 @@ with tab1:
         new_tipps = user_existing_tipps.copy()
 
         selected_joker_game = None
-        if active_user in bottom_two:
+        if active_user in bottom_two and woche > 1:
             st.warning("🃏 **Catch-Up Joker verfügbar!** Da du auf den hinteren Plätzen liegst, kannst du für EIN Spiel 2x Punkte aktivieren.")
             joker_options = {"Kein Joker": None}
             for g in nfl_games:
@@ -568,9 +568,9 @@ with tab1:
                 st.markdown("</div>", unsafe_allow_html=True)
 
             if not is_after_thursday_noon:
-                if st.form_submit_button("🏈 Tipps & Joker speichern"):
+                if st.form_submit_button("🏈 Tipps speichern"):
                     tipps_db[active_user] = new_tipps
-                    if active_user in bottom_two:
+                    if active_user in bottom_two and woche > 1:
                         if active_user not in joker_db:
                             joker_db[active_user] = {}
                         joker_db[active_user][str(woche)] = selected_joker_game
