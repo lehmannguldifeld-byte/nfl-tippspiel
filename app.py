@@ -431,17 +431,18 @@ nfl_games = get_nfl_games(week_num=woche, season_type=2)
 scores, hits = calculate_scores(nfl_games, phase=phase_choice, week_num=woche)
 
 sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-
-# Joker-Berechtigung ab Woche 2 (in Woche 1 gibt es noch keinen Joker)
 bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if (len(sorted_scores) >= 2 and woche > 1) else []
 
 now = datetime.now()
 week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
+bonus_deadline = datetime(2026, 9, 10, 12, 0, 0)
 
 if woche == 1:
     is_after_thursday_noon = now >= week1_deadline
 else:
     is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
+
+can_edit_bonus = now < bonus_deadline
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🏈 Tippen", 
@@ -496,7 +497,6 @@ with tab1:
             for game in nfl_games:
                 st.markdown("<div class='game-card-compact'>", unsafe_allow_html=True)
                 
-                # SEHR ENGE DREI-SPALTEN-MATRIX (LOGOS DIREKT AN DEN RADIO-BUTTONS)
                 col_home, col_pick, col_away = st.columns([1, 1, 1])
                 
                 with col_home:
@@ -840,36 +840,79 @@ with tab9:
         st.dataframe(df_matrix, use_container_width=True)
         st.caption("Zeigt in %, wie oft zwei Mitspieler exakt dieselben Sieger getippt haben.")
 
-# --- TAB 10: BONUSTIPPS & SUPER BOWL TIPP ---
+# --- TAB 10: BONUSTIPPS, ÜBERSICHT & ADMIN RESOLUTION ---
 with tab10:
-    st.subheader("🎯 Saison-Bonustipps & Super Bowl Champion (Je 15/25 Punkte)")
-    st.caption("Diese Tipps zählen für die gesamte Saison und bringen zum Abschluss massig Extrapunkte!")
+    st.subheader("🎯 Saison-Bonustipps & Super Bowl Champion")
     
-    if not st.session_state["logged_user"]:
-        st.warning("🔑 Bitte logge dich oben ein, um deine Bonustipps abzugeben.")
+    if can_edit_bonus:
+        st.info("⏳ Die Bonustipps können bis zum **10.09.2026 um 12:00 Uhr** abgegeben werden.")
     else:
+        st.error("🔒 Die Abgabefrist für die Bonustipps ist abgelaufen!")
+
+    # 1. PEERS TIPPS ABGEBEN (FÜR EINGELOGGTEN USER)
+    if st.session_state["logged_user"]:
         active_u = st.session_state["logged_user"]
         
-        st.markdown("### 🏆 1. Super Bowl LXI Champion Tipp (25 Punkte)")
+        st.markdown(f"### ✏️ Bonustipps eingeben / anpassen ({active_u})")
         u_playoff_pick = playoff_db.get(active_u, {}).get("sb_winner", "")
-        with st.form("sb_winner_form"):
-            sb_choice = st.text_input("Wer gewinnt den Super Bowl LXI?", value=u_playoff_pick)
-            if st.form_submit_button("🏆 Super Bowl Tipp speichern"):
-                if active_u not in playoff_db: playoff_db[active_u] = {}
-                playoff_db[active_u]["sb_winner"] = sb_choice.strip()
-                save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db)
-                st.success(f"✅ Super Bowl Tipp '{sb_choice}' für {active_u} gespeichert!")
-
-        st.markdown("---")
-        st.markdown("### 🎯 2. Saison-Bonustipps (Je 15 Punkte)")
         u_bonus = bonus_db.get(active_u, {})
-        new_b = {}
+        
         with st.form("bonus_form_tab"):
+            sb_choice = st.text_input("🏆 Wer gewinnt den Super Bowl LXI? (25 Pkt)", value=u_playoff_pick, disabled=not can_edit_bonus)
+            
+            new_b = {}
             for idx, q in enumerate(BONUS_QUESTIONS):
                 q_key = f"q_{idx}"
                 current_val = u_bonus.get(q_key, "")
-                new_b[q_key] = st.text_input(q, value=current_val)
-            if st.form_submit_button("🎯 Bonustipps speichern"):
+                new_b[q_key] = st.text_input(q, value=current_val, disabled=not can_edit_bonus)
+                
+            if can_edit_bonus and st.form_submit_button("🎯 Bonustipps speichern"):
+                if active_u not in playoff_db: playoff_db[active_u] = {}
+                playoff_db[active_u]["sb_winner"] = sb_choice.strip()
                 bonus_db[active_u] = new_b
                 if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
-                    st.success(f"✅ Bonustipps für **{active_u}** wurden gespeichert!")
+                    st.success(f"✅ Bonustipps für **{active_u}** wurden erfolgreich gespeichert!")
+                    st.rerun()
+    else:
+        st.warning("🔑 Bitte logge dich oben ein, um deine Bonustipps einzutragen.")
+
+    st.markdown("---")
+    
+    # 2. TRANSPARENTE UBERSICHT ALLER GRUPPEN-TIPPS (NACH DEADLINE FREIGESCHALTET)
+    st.markdown("### 📋 Übersicht aller Bonustipps der Gruppe")
+    if can_edit_bonus:
+        st.warning("🔒 Die Bonustipps der anderen Mitspieler werden erst am **10.09.2026 um 12:00 Uhr** sichtbar!")
+    else:
+        overview_data = []
+        # Super Bowl Tipp
+        sb_row = {"Frage": "🏆 Super Bowl LXI Champion"}
+        for u in MITSPIELER:
+            sb_row[u] = playoff_db.get(u, {}).get("sb_winner", "-")
+        overview_data.append(sb_row)
+        
+        # 8 Fragen
+        for idx, q in enumerate(BONUS_QUESTIONS):
+            q_key = f"q_{idx}"
+            q_row = {"Frage": q}
+            for u in MITSPIELER:
+                q_row[u] = bonus_db.get(u, {}).get(q_key, "-")
+            overview_data.append(q_row)
+            
+        df_bonus_overview = pd.DataFrame(overview_data)
+        st.dataframe(df_bonus_overview, use_container_width=True)
+
+    # 3. ADMIN-BEREICH (NUR FÜR PÄDU ABSEHBAR/AUSFÜLLBAR)
+    if st.session_state["logged_user"] == "Pädu":
+        st.markdown("---")
+        with st.expander("⚙️ Admin-Bereich: Auswertung & Musterlösung (Nur für Pädu)"):
+            st.write("Trage hier die offiziellen Endergebnisse der Saison ein. Richtige Antworten geben automatisch **+15 Punkte** im Leaderboard!")
+            with st.form("admin_bonus_form"):
+                admin_new_res = {}
+                for idx, q in enumerate(BONUS_QUESTIONS):
+                    q_key = f"q_{idx}"
+                    admin_new_res[q_key] = st.text_input(f"Richtige Lösung: {q}", value=bonus_results.get(q_key, ""))
+                if st.form_submit_button("💾 Musterlösung speichern & Punkte verteilen"):
+                    bonus_results = admin_new_res
+                    if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
+                        st.success("✅ **Musterlösung erfolgreich gespeichert! Punkte wurden neu berechnet.**")
+                        st.rerun()
