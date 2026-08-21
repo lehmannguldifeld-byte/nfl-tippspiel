@@ -53,13 +53,13 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
         backdrop-filter: blur(4px);
     }
-    .game-card {
+    .game-card-compact {
         background-color: rgba(30, 41, 59, 0.88);
-        border-radius: 12px;
-        padding: 12px 18px;
+        border-radius: 10px;
+        padding: 8px 12px;
         border: 1px solid rgba(255, 255, 255, 0.15);
-        margin-bottom: 10px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        margin-bottom: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     }
 
     .schedule-card {
@@ -95,13 +95,20 @@ st.markdown("""
         margin-bottom: 15px;
         box-shadow: 0 0 15px rgba(244, 63, 94, 0.3);
     }
-    .team-box {
+    .team-box-left {
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: flex-end;
+        gap: 6px;
+    }
+    .team-box-right {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 6px;
     }
     .team-name {
-        font-size: 1rem;
+        font-size: 0.95rem;
         font-weight: 800;
         color: #f8fafc;
     }
@@ -424,7 +431,9 @@ nfl_games = get_nfl_games(week_num=woche, season_type=2)
 scores, hits = calculate_scores(nfl_games, phase=phase_choice, week_num=woche)
 
 sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if len(sorted_scores) >= 2 else []
+
+# Joker-Berechtigung ab Woche 2 (in Woche 1 gibt es noch keinen Joker)
+bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if (len(sorted_scores) >= 2 and woche > 1) else []
 
 now = datetime.now()
 week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
@@ -435,7 +444,7 @@ else:
     is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
-    "🏈 Tippen & Bonustipps", 
+    "🏈 Tippen", 
     "📊 Leaderboard", 
     "📋 Tipp-Übersicht", 
     "🚨 RedZone Live", 
@@ -444,16 +453,16 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🗓️ Spielplan & Scores", 
     "📈 Saisonverlauf", 
     "📊 Tipp-Analytics", 
-    "🏆 Playoff Bracket"
+    "🎯 Bonustipps"
 ])
 
-# --- TAB 1: SCHLANKES TIPP-FORMULAR ---
+# --- TAB 1: SEHR KOMPAKTES TIPP-FORMULAR ---
 with tab1:
     if not st.session_state["logged_user"]:
         st.warning("🔑 Bitte logge dich oben ein, um deine Tipps abzugeben.")
     else:
         active_user = st.session_state["logged_user"]
-        st.subheader(f"Tipps abgeben für {active_user}")
+        st.subheader(f"Tipps abgeben für {active_user} (Woche {woche})")
         if is_after_thursday_noon:
             st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
         else:
@@ -467,7 +476,7 @@ with tab1:
 
         selected_joker_game = None
         if active_user in bottom_two:
-            st.warning("🃏 **Catch-Up Joker verfügbar!** Da du aktuell auf den hinteren Plätzen liegst, kannst du für EIN Spiel dieser Woche die doppelte Punkteanzahl (2x) aktivieren.")
+            st.warning("🃏 **Catch-Up Joker verfügbar!** Da du auf den hinteren Plätzen liegst, kannst du für EIN Spiel 2x Punkte aktivieren.")
             joker_options = {"Kein Joker": None}
             for g in nfl_games:
                 joker_options[g['matchup']] = g['id']
@@ -485,16 +494,16 @@ with tab1:
 
         with st.form("tipp_form"):
             for game in nfl_games:
-                st.markdown("<div class='game-card'>", unsafe_allow_html=True)
+                st.markdown("<div class='game-card-compact'>", unsafe_allow_html=True)
                 
-                # KOMPAKTES DESIGN: TEAM A | RADIO BUTTON | TEAM B
-                col_home, col_pick, col_away = st.columns([2.5, 2, 2.5])
+                # SEHR ENGE DREI-SPALTEN-MATRIX (LOGOS DIREKT AN DEN RADIO-BUTTONS)
+                col_home, col_pick, col_away = st.columns([1, 1, 1])
                 
                 with col_home:
                     st.markdown(f"""
-                        <div class='team-box' style='justify-content: flex-end;'>
+                        <div class='team-box-left'>
                             <span class='team-name'>{game['home_team']}</span>
-                            <img src='{game['home_logo']}' width='35'>
+                            <img src='{game['home_logo']}' width='32'>
                         </div>
                     """, unsafe_allow_html=True)
                     
@@ -517,8 +526,8 @@ with tab1:
                         
                 with col_away:
                     st.markdown(f"""
-                        <div class='team-box'>
-                            <img src='{game['away_logo']}' width='35'>
+                        <div class='team-box-right'>
+                            <img src='{game['away_logo']}' width='32'>
                             <span class='team-name'>{game['away_team']}</span>
                         </div>
                     """, unsafe_allow_html=True)
@@ -534,22 +543,8 @@ with tab1:
                         joker_db[active_user][str(woche)] = selected_joker_game
                     
                     if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
-                        st.success(f"✅ **ERFOLGREICH GESPEICHERT!** Alle Tipps für **{active_user}** (Woche {woche}) wurden sicher eingetragen.")
+                        st.success(f"✅ **Tipps für {active_user} (Woche {woche}) gespeichert!**")
                         st.toast("Tipps erfolgreich gespeichert!", icon="🏈")
-
-        st.markdown("---")
-        st.subheader("🎯 Saison-Bonustipps (Je 15 Punkte)")
-        u_bonus = bonus_db.get(active_user, {})
-        new_b = {}
-        with st.form("bonus_form"):
-            for idx, q in enumerate(BONUS_QUESTIONS):
-                q_key = f"q_{idx}"
-                current_val = u_bonus.get(q_key, "")
-                new_b[q_key] = st.text_input(q, value=current_val)
-            if st.form_submit_button("🎯 Bonustipps speichern"):
-                bonus_db[active_user] = new_b
-                if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
-                    st.success(f"✅ Bonustipps für **{active_user}** wurden gespeichert!")
 
 # --- TAB 2: LEADERBOARD ---
 with tab2:
@@ -646,7 +641,7 @@ with tab4:
         for g in nfl_games:
             if g['in_progress']:
                 st.markdown(f"""
-                    <div class='game-card' style='border-color: #f43f5e;'>
+                    <div class='game-card-compact' style='border-color: #f43f5e;'>
                         <div style='color:#f43f5e; font-weight:bold; margin-bottom:5px;'>🔴 LIVE: {g['status_detail']}</div>
                         <div style='display:flex; justify-content:space-between; align-items:center;'>
                             <span><b>{g['home_team']}</b> ({g['home_score']})</span>
@@ -682,8 +677,11 @@ with tab5:
     st.markdown("---")
     st.subheader("💬 Trash Talk Pinnwand")
     w_comments = comments_db.get(str(woche), [])
-    for c in w_comments:
-        st.markdown(f"<div class='chat-bubble'><b>{c['user']}:</b> {c['text']} <span style='font-size:0.75rem; color:#94a3b8;'>({c['time']})</span></div>", unsafe_allow_html=True)
+    if not w_comments:
+        st.info("Noch keine Sprüche für diese Woche vorhanden. Sei der Erste!")
+    else:
+        for c in w_comments:
+            st.markdown(f"<div class='chat-bubble'><b>{c['user']}:</b> {c['text']} <span style='font-size:0.75rem; color:#94a3b8;'>({c['time']})</span></div>", unsafe_allow_html=True)
         
     st.markdown("##### ✏️ Spruch auf die Pinnwand posten:")
     if st.session_state["logged_user"]:
@@ -774,12 +772,12 @@ with tab7:
                             {g['status_detail']}
                         </div>
                         <div style='display: flex; justify-content: space-between; align-items: center;'>
-                            <div class='team-box'>
+                            <div class='team-box-right'>
                                 <img src='{g['home_logo']}' width='45'>
                                 <span class='team-name {h_win}'>{g['home_team']}</span>
                             </div>
                             <div class='score-badge'>{g['home_score']} : {g['away_score']}</div>
-                            <div class='team-box' style='flex-direction: row-reverse;'>
+                            <div class='team-box-right' style='flex-direction: row-reverse;'>
                                 <img src='{g['away_logo']}' width='45'>
                                 <span class='team-name {a_win}'>{g['away_team']}</span>
                             </div>
@@ -842,34 +840,17 @@ with tab9:
         st.dataframe(df_matrix, use_container_width=True)
         st.caption("Zeigt in %, wie oft zwei Mitspieler exakt dieselben Sieger getippt haben.")
 
-# --- TAB 10: PLAYOFF BRACKET ---
+# --- TAB 10: BONUSTIPPS & SUPER BOWL TIPP ---
 with tab10:
-    st.subheader("🏆 NFL Playoff Bracket & Postseason Multiplikatoren")
-    st.info("🔥 In den Playoffs steigen die Punkte pro richtigem Tipp! Wild Card: 2x Punkte | Super Bowl LXI: 3x Punkte!")
+    st.subheader("🎯 Saison-Bonustipps & Super Bowl Champion (Je 15/25 Punkte)")
+    st.caption("Diese Tipps zählen für die gesamte Saison und bringen zum Abschluss massig Extrapunkte!")
     
-    col_b1, col_b2, col_b3, col_b4 = st.columns(4)
-    with col_b1:
-        st.markdown("#### Wild Card Round (2x)")
-        st.markdown("<div class='bracket-node'>AFC Wild Card 1</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>AFC Wild Card 2</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>NFC Wild Card 1</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>NFC Wild Card 2</div>", unsafe_allow_html=True)
-    with col_b2:
-        st.markdown("#### Divisional Round (2x)")
-        st.markdown("<div class='bracket-node'>AFC Divisional 1</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>NFC Divisional 1</div>", unsafe_allow_html=True)
-    with col_b3:
-        st.markdown("#### Conference Finals (2.5x)")
-        st.markdown("<div class='bracket-node'>👑 AFC Championship</div>", unsafe_allow_html=True)
-        st.markdown("<div class='bracket-node'>👑 NFC Championship</div>", unsafe_allow_html=True)
-    with col_b4:
-        st.markdown("#### Super Bowl LXI (3x)")
-        st.markdown("<div class='bracket-node' style='border-color:#f59e0b; color:#f59e0b;'>🏈 SUPER BOWL CHAMPION</div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("### 🎯 Dein Super Bowl Champion Tipp (25 Bonuspunkte)")
-    if st.session_state["logged_user"]:
+    if not st.session_state["logged_user"]:
+        st.warning("🔑 Bitte logge dich oben ein, um deine Bonustipps abzugeben.")
+    else:
         active_u = st.session_state["logged_user"]
+        
+        st.markdown("### 🏆 1. Super Bowl LXI Champion Tipp (25 Punkte)")
         u_playoff_pick = playoff_db.get(active_u, {}).get("sb_winner", "")
         with st.form("sb_winner_form"):
             sb_choice = st.text_input("Wer gewinnt den Super Bowl LXI?", value=u_playoff_pick)
@@ -878,5 +859,17 @@ with tab10:
                 playoff_db[active_u]["sb_winner"] = sb_choice.strip()
                 save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db)
                 st.success(f"✅ Super Bowl Tipp '{sb_choice}' für {active_u} gespeichert!")
-    else:
-        st.warning("🔑 Bitte logge dich oben ein, um deinen Super Bowl Tipp abzugeben.")
+
+        st.markdown("---")
+        st.markdown("### 🎯 2. Saison-Bonustipps (Je 15 Punkte)")
+        u_bonus = bonus_db.get(active_u, {})
+        new_b = {}
+        with st.form("bonus_form_tab"):
+            for idx, q in enumerate(BONUS_QUESTIONS):
+                q_key = f"q_{idx}"
+                current_val = u_bonus.get(q_key, "")
+                new_b[q_key] = st.text_input(q, value=current_val)
+            if st.form_submit_button("🎯 Bonustipps speichern"):
+                bonus_db[active_u] = new_b
+                if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
+                    st.success(f"✅ Bonustipps für **{active_u}** wurden gespeichert!")
