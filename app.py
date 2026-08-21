@@ -198,6 +198,18 @@ if "logged_user" not in st.session_state:
 # --- DATENBANK VERWALTUNG ---
 DB_FILE = "nfl_tippspiel_data.json"
 
+def clean_dict_data(data):
+    """Reinigt geladene Daten von alten/ungültigen Testeinträgen."""
+    if not isinstance(data, dict):
+        return {u: {} for u in MITSPIELER}
+    cleaned = {u: {} for u in MITSPIELER}
+    for u in MITSPIELER:
+        if u in data and isinstance(data[u], dict):
+            for k, v in data[u].items():
+                if v and str(v).strip() not in ["", "-", "None"]:
+                    cleaned[u][k] = str(v).strip()
+    return cleaned
+
 def fetch_from_github():
     try:
         token = st.secrets.get("GITHUB_TOKEN")
@@ -217,44 +229,30 @@ def fetch_from_github():
 
 def load_db():
     gh_data = fetch_from_github()
-    if gh_data:
-        with open(DB_FILE, "w") as f:
-            json.dump(gh_data, f, indent=4)
-        return (
-            gh_data.get("tipps_db", {u: {} for u in MITSPIELER}),
-            gh_data.get("bonus_db", {u: {} for u in MITSPIELER}),
-            gh_data.get("bonus_results", {}),
-            gh_data.get("joker_db", {u: {} for u in MITSPIELER}),
-            gh_data.get("comments_db", {}),
-            gh_data.get("hosts_db", {w: "Noch offen" for w in WEEK_SUNDAYS.keys()}),
-            gh_data.get("playoff_db", {u: {} for u in MITSPIELER})
-        )
+    raw_data = gh_data if gh_data else {}
     
-    if os.path.exists(DB_FILE):
+    if not raw_data and os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r") as f:
-                data = json.load(f)
-                return (
-                    data.get("tipps_db", {u: {} for u in MITSPIELER}),
-                    data.get("bonus_db", {u: {} for u in MITSPIELER}),
-                    data.get("bonus_results", {}),
-                    data.get("joker_db", {u: {} for u in MITSPIELER}),
-                    data.get("comments_db", {}),
-                    data.get("hosts_db", {w: "Noch offen" for w in WEEK_SUNDAYS.keys()}),
-                    data.get("playoff_db", {u: {} for u in MITSPIELER})
-                )
+                raw_data = json.load(f)
         except Exception:
-            pass
-            
-    return (
-        {u: {} for u in MITSPIELER}, 
-        {u: {} for u in MITSPIELER}, 
-        {}, 
-        {u: {} for u in MITSPIELER}, 
-        {},
-        {w: "Noch offen" for w in WEEK_SUNDAYS.keys()},
-        {u: {} for u in MITSPIELER}
-    )
+            raw_data = {}
+
+    tipps_db = clean_dict_data(raw_data.get("tipps_db"))
+    bonus_db = clean_dict_data(raw_data.get("bonus_db"))
+    joker_db = clean_dict_data(raw_data.get("joker_db"))
+    playoff_db = clean_dict_data(raw_data.get("playoff_db"))
+    
+    bonus_results = raw_data.get("bonus_results", {})
+    if not isinstance(bonus_results, dict): bonus_results = {}
+    
+    comments_db = raw_data.get("comments_db", {})
+    if not isinstance(comments_db, dict): comments_db = {}
+    
+    hosts_db = raw_data.get("hosts_db", {w: "Noch offen" for w in WEEK_SUNDAYS.keys()})
+    if not isinstance(hosts_db, dict): hosts_db = {w: "Noch offen" for w in WEEK_SUNDAYS.keys()}
+
+    return tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db
 
 def sync_to_github(data_dict):
     try:
@@ -799,25 +797,24 @@ with tab8:
     chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
     st.line_chart(chart_df)
 
-# --- TAB 9: SAUBERE TIPP ANALYTICS (NUR BEI ECHTEN TIPPS) ---
+# --- TAB 9: TIPP ANALYTICS (NUR BEI VALIDEN ECHTEN NFL TEAMS) ---
 with tab9:
     st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
     st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
     
-    # FILTERT LEERE STRING-TIPPS AUS!
+    valid_team_abbrs = set(TEAM_COLORS.keys())
     all_picked_teams = []
-    has_real_tipps = False
     
     for u in MITSPIELER:
         for game_id, team in tipps_db.get(u, {}).items():
-            if team and str(team).strip() not in ["", "-"]:
-                all_picked_teams.append(str(team).strip())
-                has_real_tipps = True
+            val = str(team).strip()
+            if val in valid_team_abbrs:
+                all_picked_teams.append(val)
 
     col_an1, col_an2 = st.columns(2)
     with col_an1:
         st.markdown("### 🔝 Top-5 Lieblingsteams der Gruppe")
-        if has_real_tipps and len(all_picked_teams) > 0:
+        if len(all_picked_teams) > 0:
             team_counts = pd.Series(all_picked_teams).value_counts().head(5)
             st.bar_chart(team_counts)
         else:
@@ -825,13 +822,13 @@ with tab9:
 
     with col_an2:
         st.markdown("### 🤝 Tipp-Übereinstimmung (Agreement Rate)")
-        if has_real_tipps:
+        if len(all_picked_teams) > 0:
             matrix_data = {}
             for u1 in MITSPIELER:
                 row = {}
                 for u2 in MITSPIELER:
-                    tipps1 = {k: v for k, v in tipps_db.get(u1, {}).items() if str(v).strip() not in ["", "-"]}
-                    tipps2 = {k: v for k, v in tipps_db.get(u2, {}).items() if str(v).strip() not in ["", "-"]}
+                    tipps1 = {k: v for k, v in tipps_db.get(u1, {}).items() if str(v).strip() in valid_team_abbrs}
+                    tipps2 = {k: v for k, v in tipps_db.get(u2, {}).items() if str(v).strip() in valid_team_abbrs}
                     common = set(tipps1.keys()) & set(tipps2.keys())
                     if common:
                         matches = sum(1 for k in common if tipps1[k] == tipps2[k])
