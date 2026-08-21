@@ -1,2 +1,64 @@
-
-{}
+{
+    "tipps_db": {
+        "Andy": {},
+        "Ronny": {},
+        "Bauzzen": {},
+        "B\u00f6ssi": {},
+        "Jerome": {},
+        "M\u00e4ni": {},
+        "Domi": {},
+        "P\u00e4du": {}
+    },
+    "bonus_db": {
+        "Andy": {},
+        "Ronny": {},
+        "Bauzzen": {},
+        "B\u00f6ssi": {},
+        "Jerome": {},
+        "M\u00e4ni": {},
+        "Domi": {},
+        "P\u00e4du": {}
+    },
+    "bonus_results": {},
+    "joker_db": {
+        "Andy": {},
+        "Ronny": {},
+        "Bauzzen": {},
+        "B\u00f6ssi": {},
+        "Jerome": {},
+        "M\u00e4ni": {},
+        "Domi": {},
+        "P\u00e4du": {}
+    },
+    "comments_db": {},
+    "hosts_db": {
+        "1": "Noch offen",
+        "2": "Noch offen",
+        "3": "Noch offen",
+        "4": "Noch offen",
+        "5": "Noch offen",
+        "6": "Noch offen",
+        "7": "Noch offen",
+        "8": "Noch offen",
+        "9": "Noch offen",
+        "10": "Noch offen",
+        "11": "Noch offen",
+        "12": "Noch offen",
+        "13": "Noch offen",
+        "14": "Noch offen",
+        "15": "Noch offen",
+        "16": "Noch offen",
+        "17": "Noch offen",
+        "18": "Noch offen"
+    },
+    "playoff_db": {
+        "Andy": {},
+        "Ronny": {},
+        "Bauzzen": {},
+        "B\u00f6ssi": {},
+        "Jerome": {},
+        "M\u00e4ni": {},
+        "Domi": {},
+        "P\u00e4du": {}
+    }
+}
