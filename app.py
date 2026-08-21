@@ -799,48 +799,55 @@ with tab8:
     chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
     st.line_chart(chart_df)
 
-# --- TAB 9: TIPP ANALYTICS ---
+# --- TAB 9: SAUBERE TIPP ANALYTICS (NUR BEI ECHTEN TIPPS) ---
 with tab9:
     st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
     st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
     
+    # FILTERT LEERE STRING-TIPPS AUS!
     all_picked_teams = []
+    has_real_tipps = False
+    
     for u in MITSPIELER:
         for game_id, team in tipps_db.get(u, {}).items():
-            if team and team != "-":
-                all_picked_teams.append(team)
-                
+            if team and str(team).strip() not in ["", "-"]:
+                all_picked_teams.append(str(team).strip())
+                has_real_tipps = True
+
     col_an1, col_an2 = st.columns(2)
     with col_an1:
         st.markdown("### 🔝 Top-5 Lieblingsteams der Gruppe")
-        if all_picked_teams:
+        if has_real_tipps and len(all_picked_teams) > 0:
             team_counts = pd.Series(all_picked_teams).value_counts().head(5)
             st.bar_chart(team_counts)
         else:
-            st.info("Noch keine echten Tippdaten vorhanden.")
+            st.info("ℹ️ Noch keine echten Tippdaten in der Gruppe vorhanden.")
 
     with col_an2:
         st.markdown("### 🤝 Tipp-Übereinstimmung (Agreement Rate)")
-        matrix_data = {}
-        for u1 in MITSPIELER:
-            row = {}
-            for u2 in MITSPIELER:
-                tipps1 = tipps_db.get(u1, {})
-                tipps2 = tipps_db.get(u2, {})
-                common = set(tipps1.keys()) & set(tipps2.keys())
-                if common:
-                    matches = sum(1 for k in common if tipps1[k] == tipps2[k])
-                    pct = int((matches / len(common)) * 100)
-                else:
-                    pct = 100 if u1 == u2 else 0
-                row[u2] = f"{pct}%"
-            matrix_data[u1] = row
-            
-        df_matrix = pd.DataFrame(matrix_data)
-        st.dataframe(df_matrix, use_container_width=True)
-        st.caption("Zeigt in %, wie oft zwei Mitspieler exakt dieselben Sieger getippt haben.")
+        if has_real_tipps:
+            matrix_data = {}
+            for u1 in MITSPIELER:
+                row = {}
+                for u2 in MITSPIELER:
+                    tipps1 = {k: v for k, v in tipps_db.get(u1, {}).items() if str(v).strip() not in ["", "-"]}
+                    tipps2 = {k: v for k, v in tipps_db.get(u2, {}).items() if str(v).strip() not in ["", "-"]}
+                    common = set(tipps1.keys()) & set(tipps2.keys())
+                    if common:
+                        matches = sum(1 for k in common if tipps1[k] == tipps2[k])
+                        pct = int((matches / len(common)) * 100)
+                    else:
+                        pct = 100 if u1 == u2 else 0
+                    row[u2] = f"{pct}%"
+                matrix_data[u1] = row
+                
+            df_matrix = pd.DataFrame(matrix_data)
+            st.dataframe(df_matrix, use_container_width=True)
+            st.caption("Zeigt in %, wie oft zwei Mitspieler exakt dieselben Sieger getippt haben.")
+        else:
+            st.info("ℹ️ Noch keine echten Tippdaten für einen Vergleich vorhanden.")
 
-# --- TAB 10: BONUSTIPPS, ÜBERSICHT & ADMIN RESOLUTION ---
+# --- TAB 10: BONUSTIPPS, UBERSICHT & ADMIN RESOLUTION ---
 with tab10:
     st.subheader("🎯 Saison-Bonustipps & Super Bowl Champion")
     
@@ -884,13 +891,11 @@ with tab10:
         st.warning("🔒 Die Bonustipps der anderen Mitspieler werden erst am **10.09.2026 um 12:00 Uhr** sichtbar!")
     else:
         overview_data = []
-        # Super Bowl Tipp
         sb_row = {"Frage": "🏆 Super Bowl LXI Champion"}
         for u in MITSPIELER:
             sb_row[u] = playoff_db.get(u, {}).get("sb_winner", "-")
         overview_data.append(sb_row)
         
-        # 8 Fragen
         for idx, q in enumerate(BONUS_QUESTIONS):
             q_key = f"q_{idx}"
             q_row = {"Frage": q}
