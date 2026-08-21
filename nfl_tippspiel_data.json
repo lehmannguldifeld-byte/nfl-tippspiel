@@ -47,7 +47,15 @@
         "Domi": {},
         "P\u00e4du": {}
     },
-    "comments_db": {},
+    "comments_db": {
+        "1": [
+            {
+                "user": "P\u00e4du",
+                "text": "Flieht Ihr NARRREN!",
+                "time": "14:15"
+            }
+        ]
+    },
     "hosts_db": {
         "1": "Noch offen",
         "2": "Noch offen",
