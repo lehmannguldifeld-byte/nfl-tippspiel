@@ -160,15 +160,6 @@ st.markdown("""
         padding: 15px;
         margin-bottom: 20px;
     }
-    .bracket-node {
-        background: rgba(15, 23, 42, 0.9);
-        border: 1px solid #0284c7;
-        border-radius: 8px;
-        padding: 10px;
-        margin-bottom: 8px;
-        text-align: center;
-        font-weight: bold;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -464,7 +455,6 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
 
 # --- TAB 1: SEHR KOMPAKTES TIPP-FORMULAR + ADMIN-ÜBERSICHT ---
 with tab1:
-    # 👑 ADMIN-KONTROLLZENTRUM FÜR PÄDU
     if st.session_state["logged_user"] == "Pädu":
         st.markdown("<div class='admin-box'>", unsafe_allow_html=True)
         st.markdown(f"### 👑 Admin-Kontrollzentrum (Woche {woche})")
@@ -842,7 +832,7 @@ with tab8:
     chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
     st.line_chart(chart_df)
 
-# --- TAB 9: TIPP ANALYTICS ---
+# --- TAB 9: ABSOLUT STRICKTE TIPP ANALYTICS ---
 with tab9:
     st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
     st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
@@ -856,18 +846,17 @@ with tab9:
             if val in valid_team_abbrs:
                 all_picked_teams.append(val)
 
-    col_an1, col_an2 = st.columns(2)
-    with col_an1:
-        st.markdown("### 🔝 Top-5 Lieblingsteams der Gruppe")
-        if len(all_picked_teams) > 0:
+    if len(all_picked_teams) == 0:
+        st.info("ℹ️ Noch keine echten Tippdaten in der Gruppe vorhanden. Die Auswertung schaltet sich automatisch frei, sobald die ersten Tipps abgegeben wurden!")
+    else:
+        col_an1, col_an2 = st.columns(2)
+        with col_an1:
+            st.markdown("### 🔝 Top-5 Lieblingsteams der Gruppe")
             team_counts = pd.Series(all_picked_teams).value_counts().head(5)
             st.bar_chart(team_counts)
-        else:
-            st.info("ℹ️ Noch keine echten Tippdaten in der Gruppe vorhanden.")
 
-    with col_an2:
-        st.markdown("### 🤝 Tipp-Übereinstimmung (Agreement Rate)")
-        if len(all_picked_teams) > 0:
+        with col_an2:
+            st.markdown("### 🤝 Tipp-Übereinstimmung (Agreement Rate)")
             matrix_data = {}
             for u1 in MITSPIELER:
                 row = {}
@@ -875,19 +864,17 @@ with tab9:
                     tipps1 = {k: v for k, v in tipps_db.get(u1, {}).items() if str(v).strip() in valid_team_abbrs}
                     tipps2 = {k: v for k, v in tipps_db.get(u2, {}).items() if str(v).strip() in valid_team_abbrs}
                     common = set(tipps1.keys()) & set(tipps2.keys())
-                    if common:
+                    if len(common) > 0:
                         matches = sum(1 for k in common if tipps1[k] == tipps2[k])
                         pct = int((matches / len(common)) * 100)
                     else:
-                        pct = 100 if u1 == u2 else 0
+                        pct = 0
                     row[u2] = f"{pct}%"
                 matrix_data[u1] = row
                 
             df_matrix = pd.DataFrame(matrix_data)
             st.dataframe(df_matrix, use_container_width=True)
             st.caption("Zeigt in %, wie oft zwei Mitspieler exakt dieselben Sieger getippt haben.")
-        else:
-            st.info("ℹ️ Noch keine echten Tippdaten für einen Vergleich vorhanden.")
 
 # --- TAB 10: BONUSTIPPS, UBERSICHT & ADMIN RESOLUTION ---
 with tab10:
@@ -898,7 +885,6 @@ with tab10:
     else:
         st.error("🔒 Die Abgabefrist für die Bonustipps ist abgelaufen!")
 
-    # 1. PEERS TIPPS ABGEBEN (FÜR EINGELOGGTEN USER)
     if st.session_state["logged_user"]:
         active_u = st.session_state["logged_user"]
         
@@ -927,7 +913,6 @@ with tab10:
 
     st.markdown("---")
     
-    # 2. TRANSPARENTE UBERSICHT ALLER GRUPPEN-TIPPS (NACH DEADLINE FREIGESCHALTET)
     st.markdown("### 📋 Übersicht aller Bonustipps der Gruppe")
     if can_edit_bonus:
         st.warning("🔒 Die Bonustipps der anderen Mitspieler werden erst am **10.09.2026 um 12:00 Uhr** sichtbar!")
@@ -948,7 +933,6 @@ with tab10:
         df_bonus_overview = pd.DataFrame(overview_data)
         st.dataframe(df_bonus_overview, use_container_width=True)
 
-    # 3. ADMIN-BEREICH (NUR FÜR PÄDU ABSEHBAR/AUSFÜLLBAR)
     if st.session_state["logged_user"] == "Pädu":
         st.markdown("---")
         with st.expander("⚙️ Admin-Bereich: Auswertung, Musterlösung & RESET (Nur für Pädu)"):
