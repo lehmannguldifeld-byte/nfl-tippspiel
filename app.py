@@ -357,79 +357,79 @@ def get_nfl_games(week_num=1, season_type=2):
     except Exception:
         return []
 
-# --- ESPN FANTASY LEAGUE API FETCH ---
+# --- ESPN FANTASY LEAGUE API FETCH (INTELLIGENT FALLBACK) ---
 @st.cache_data(ttl=120)
-def fetch_espn_fantasy_data(league_id, season_year=2026):
-    url = f"https://fantasy.espn.com/apis/v3/games/ffl/seasons/{season_year}/segments/0/leagues/{league_id}?view=mMatchupScore&view=mScoreboard&view=mTeam&view=mSettings"
-    
+def fetch_espn_fantasy_data(league_id):
+    years_to_try = [2026, datetime.now().year]
     cookies = {}
     espn_s2 = st.secrets.get("ESPN_S2")
     swid = st.secrets.get("ESPN_SWID")
     if espn_s2 and swid:
         cookies = {"espn_s2": espn_s2, "SWID": swid}
 
-    try:
-        res = requests.get(url, cookies=cookies)
-        if res.status_code != 200:
-            return None, "Error: " + str(res.status_code)
-        data = res.json()
-        
-        teams_map = {}
-        teams_list = []
-        for t in data.get('teams', []):
-            name = f"{t.get('location', '')} {t.get('nickname', '')}".strip()
-            if not name:
-                name = f"Team {t.get('id')}"
-            logo = t.get('logo', '')
-            record = t.get('record', {}).get('overall', {})
-            wins = record.get('wins', 0)
-            losses = record.get('losses', 0)
-            ties = record.get('ties', 0)
-            points = record.get('pointsFor', 0.0)
-            
-            teams_map[t['id']] = {'name': name, 'logo': logo}
-            teams_list.append({
-                'Team': name,
-                'W': wins,
-                'L': losses,
-                'T': ties,
-                'Punkte': round(points, 1)
-            })
+    for season_year in set(years_to_try):
+        url = f"https://fantasy.espn.com/apis/v3/games/ffl/seasons/{season_year}/segments/0/leagues/{league_id}?view=mMatchupScore&view=mScoreboard&view=mTeam&view=mSettings"
+        try:
+            res = requests.get(url, cookies=cookies)
+            if res.status_code == 200:
+                data = res.json()
+                teams_map = {}
+                teams_list = []
+                for t in data.get('teams', []):
+                    name = f"{t.get('location', '')} {t.get('nickname', '')}".strip()
+                    if not name:
+                        name = f"Team {t.get('id')}"
+                    logo = t.get('logo', '')
+                    record = t.get('record', {}).get('overall', {})
+                    wins = record.get('wins', 0)
+                    losses = record.get('losses', 0)
+                    ties = record.get('ties', 0)
+                    points = record.get('pointsFor', 0.0)
+                    
+                    teams_map[t['id']] = {'name': name, 'logo': logo}
+                    teams_list.append({
+                        'Team': name,
+                        'W': wins,
+                        'L': losses,
+                        'T': ties,
+                        'Punkte': round(points, 1)
+                    })
 
-        scoring_period = data.get('scoringPeriodId', 1)
-        schedule = data.get('schedule', [])
-        
-        current_matchups = []
-        for m in schedule:
-            if m.get('matchupPeriodId') == scoring_period:
-                h_id = m.get('home', {}).get('teamId')
-                a_id = m.get('away', {}).get('teamId')
-                h_score = m.get('home', {}).get('totalPoints', 0.0)
-                a_score = m.get('away', {}).get('totalPoints', 0.0)
+                scoring_period = data.get('scoringPeriodId', 1)
+                schedule = data.get('schedule', [])
                 
-                home_team_info = teams_map.get(h_id, {'name': f"Team {h_id}", 'logo': ''})
-                away_team_info = teams_map.get(a_id, {'name': f"Team {a_id}", 'logo': ''})
-                
-                current_matchups.append({
-                    'home_name': home_team_info['name'],
-                    'home_logo': home_team_info['logo'],
-                    'home_score': round(h_score, 2),
-                    'away_name': away_team_info['name'],
-                    'away_logo': away_team_info['logo'],
-                    'away_score': round(a_score, 2)
-                })
-                
-        return {
-            'league_name': data.get('settings', {}).get('name', 'ESPN Fantasy League'),
-            'week': scoring_period,
-            'matchups': current_matchups,
-            'standings': teams_list
-        }, None
-    except Exception as e:
-        return None, str(e)
+                current_matchups = []
+                for m in schedule:
+                    if m.get('matchupPeriodId') == scoring_period:
+                        h_id = m.get('home', {}).get('teamId')
+                        a_id = m.get('away', {}).get('teamId')
+                        h_score = m.get('home', {}).get('totalPoints', 0.0)
+                        a_score = m.get('away', {}).get('totalPoints', 0.0)
+                        
+                        home_team_info = teams_map.get(h_id, {'name': f"Team {h_id}", 'logo': ''})
+                        away_team_info = teams_map.get(a_id, {'name': f"Team {a_id}", 'logo': ''})
+                        
+                        current_matchups.append({
+                            'home_name': home_team_info['name'],
+                            'home_logo': home_team_info['logo'],
+                            'home_score': round(h_score, 2),
+                            'away_name': away_team_info['name'],
+                            'away_logo': away_team_info['logo'],
+                            'away_score': round(a_score, 2)
+                        })
+                        
+                return {
+                    'league_name': data.get('settings', {}).get('name', 'ESPN Fantasy League'),
+                    'week': scoring_period,
+                    'matchups': current_matchups,
+                    'standings': teams_list
+                }, None
+        except Exception:
+            pass
+    return None, "Konnte Liga-Daten von ESPN nicht abrufen."
 
 # --- PUNKTE LOGIK ---
-def calculate_scores(all_games, phase="Regular Season", week_num=1):
+def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonus=True):
     scores = {u: 0 for u in MITSPIELER}
     weekly_hits = {u: 0 for u in MITSPIELER}
     multiplier = 1 if phase == "Regular Season" else (2 if phase == "Playoffs" else 3)
@@ -447,11 +447,18 @@ def calculate_scores(all_games, phase="Regular Season", week_num=1):
         if weekly_hits[u] >= 6:
             scores[u] += 10
             
-    for u in MITSPIELER:
-        u_bonus = bonus_db.get(u, {})
-        for q_idx, correct_ans in bonus_results.items():
-            if correct_ans and u_bonus.get(q_idx, "").strip().lower() == correct_ans.strip().lower():
-                scores[u] += 15
+    if include_bonus:
+        for u in MITSPIELER:
+            u_bonus = bonus_db.get(u, {})
+            for q_idx, correct_ans in bonus_results.items():
+                if correct_ans and u_bonus.get(q_idx, "").strip().lower() == correct_ans.strip().lower():
+                    scores[u] += 15
+            
+            # Super Bowl Champion Bonus (+25 Pkt)
+            sb_correct = bonus_results.get("sb_winner", "")
+            u_sb = playoff_db.get(u, {}).get("sb_winner", "")
+            if sb_correct and u_sb and u_sb.strip().lower() == sb_correct.strip().lower():
+                scores[u] += 25
 
     return scores, weekly_hits
 
@@ -498,7 +505,7 @@ with c2:
     phase_choice = "Regular Season" if woche <= 18 else "Playoffs"
 
 nfl_games = get_nfl_games(week_num=woche, season_type=2)
-scores, hits = calculate_scores(nfl_games, phase=phase_choice, week_num=woche)
+scores, hits = calculate_scores(nfl_games, phase=phase_choice, week_num=woche, include_bonus=True)
 
 sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if (len(sorted_scores) >= 2 and woche > 1) else []
@@ -507,10 +514,16 @@ now = datetime.now()
 week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
 bonus_deadline = datetime(2026, 9, 10, 12, 0, 0)
 
-if woche == 1:
-    is_after_thursday_noon = now >= week1_deadline
+# PRÄZISE FRISTEN-LOGIK FÜR VERGANGENE / AKTUELLE / ZUKÜNFTIGE WOCHEN
+if woche < current_default_week:
+    is_after_thursday_noon = True
+elif woche > current_default_week:
+    is_after_thursday_noon = False
 else:
-    is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
+    if woche == 1:
+        is_after_thursday_noon = now >= week1_deadline
+    else:
+        is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
 can_edit_bonus = now < bonus_deadline
 
@@ -893,13 +906,14 @@ with tab7:
                     </div>
                 """, unsafe_allow_html=True)
 
-# --- TAB 8: SAISONVERLAUF ---
+# --- TAB 8: SAISONVERLAUF (KORREKTE WOCHEN-SUMMIERUNG OHNE DUPLIZIERTE BONUS-PUNKTE) ---
 with tab8:
     st.subheader("📈 Der Kampf um die Krone (Punkteverlauf)")
     history_data = {u: [0] for u in MITSPIELER}
     for w in range(1, woche + 1):
         w_games = get_nfl_games(week_num=w)
-        w_scores, _ = calculate_scores(w_games, week_num=w)
+        # include_bonus=False verhindert die Mehrfach-Hinzurechnung von Bonuspunkten in der Schleife!
+        w_scores, _ = calculate_scores(w_games, week_num=w, include_bonus=False)
         for u in MITSPIELER:
             prev = history_data[u][-1]
             history_data[u].append(prev + w_scores[u])
@@ -907,7 +921,7 @@ with tab8:
     chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
     st.line_chart(chart_df)
 
-# --- TAB 9: ABSOLUT STRICKTE TIPP ANALYTICS ---
+# --- TAB 9: STRICKTE TIPP ANALYTICS ---
 with tab9:
     st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
     st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
@@ -943,8 +957,8 @@ with tab9:
                         matches = sum(1 for k in common if tipps1[k] == tipps2[k])
                         pct = int((matches / len(common)) * 100)
                     else:
-                        pct = 0
-                    row[u2] = f"{pct}%"
+                        pct = "-"
+                    row[u2] = f"{pct}%" if pct != "-" else "-"
                 matrix_data[u1] = row
                 
             df_matrix = pd.DataFrame(matrix_data)
@@ -1011,9 +1025,10 @@ with tab10:
     if st.session_state["logged_user"] == "Pädu":
         st.markdown("---")
         with st.expander("⚙️ Admin-Bereich: Auswertung, Musterlösung & RESET (Nur für Pädu)"):
-            st.write("Trage hier die offiziellen Endergebnisse der Saison ein. Richtige Antworten geben automatisch **+15 Punkte** im Leaderboard!")
+            st.write("Trage hier die offiziellen Endergebnisse der Saison ein. Richtige Antworten geben automatisch **+15 Punkte** (Super Bowl = **+25 Pkt**) im Leaderboard!")
             with st.form("admin_bonus_form"):
                 admin_new_res = {}
+                admin_new_res["sb_winner"] = st.text_input("Richtiger Super Bowl Winner:", value=bonus_results.get("sb_winner", ""))
                 for idx, q in enumerate(BONUS_QUESTIONS):
                     q_key = f"q_{idx}"
                     admin_new_res[q_key] = st.text_input(f"Richtige Lösung: {q}", value=bonus_results.get(q_key, ""))
