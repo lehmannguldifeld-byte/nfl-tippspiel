@@ -357,7 +357,7 @@ def get_nfl_games(week_num=1, season_type=2):
     except Exception:
         return []
 
-# --- ESPN FANTASY LEAGUE API FETCH (INTELLIGENT HEADER + MULTI-YEAR CHECK) ---
+# --- ESPN FANTASY LEAGUE API FETCH (INTELLIGENT MEMBER & TEAM PARSER) ---
 @st.cache_data(ttl=120)
 def fetch_espn_fantasy_data(league_id):
     years_to_try = [2026, 2025, 2024]
@@ -382,17 +382,45 @@ def fetch_espn_fantasy_data(league_id):
     for year in years_to_try:
         for base_url_template in base_urls:
             url = base_url_template.format(year=year, league_id=league_id)
-            full_url = f"{url}?view=mMatchupScore&view=mScoreboard&view=mTeam&view=mSettings&view=mStandings"
+            full_url = f"{url}?view=mMatchupScore&view=mScoreboard&view=mTeam&view=mSettings&view=mStandings&view=mMembers"
             try:
                 res = requests.get(full_url, headers=headers, cookies=cookies, timeout=6)
                 if res.status_code == 200:
                     data = res.json()
+                    
+                    # 1. MEMBERS / MANAGER DIRECTORY MAP
+                    members_map = {}
+                    for m in data.get('members', []):
+                        m_id = m.get('id')
+                        first = m.get('firstName', '').strip()
+                        last = m.get('lastName', '').strip()
+                        display = m.get('displayName', '').strip()
+                        full_name = f"{first} {last}".strip() if (first or last) else display
+                        if m_id:
+                            members_map[m_id] = full_name
+
+                    # 2. TEAMS RESOLUTION WITH MANAGER NAMES
                     teams_map = {}
                     teams_list = []
                     for t in data.get('teams', []):
-                        name = f"{t.get('location', '')} {t.get('nickname', '')}".strip()
-                        if not name:
-                            name = f"Team {t.get('id')}"
+                        t_id = t.get('id')
+                        loc = t.get('location', '').strip()
+                        nick = t.get('nickname', '').strip()
+                        
+                        # Find Owner / Manager Name
+                        owners = t.get('owners', [])
+                        owner_name = members_map.get(owners[0], '') if owners else ''
+                        
+                        # Build clean display name
+                        if loc and nick and loc.lower() != "team":
+                            team_name = f"{loc} {nick}"
+                        elif nick and nick != str(t_id):
+                            team_name = nick
+                        elif owner_name:
+                            team_name = f"Team {owner_name}"
+                        else:
+                            team_name = f"Team {t_id}"
+
                         logo = t.get('logo', '')
                         record = t.get('record', {}).get('overall', {})
                         wins = record.get('wins', 0)
@@ -400,9 +428,10 @@ def fetch_espn_fantasy_data(league_id):
                         ties = record.get('ties', 0)
                         points = record.get('pointsFor', 0.0)
                         
-                        teams_map[t['id']] = {'name': name, 'logo': logo}
+                        teams_map[t_id] = {'name': team_name, 'logo': logo, 'manager': owner_name or '-'}
                         teams_list.append({
-                            'Team': name,
+                            'Team': team_name,
+                            'Manager': owner_name or '-',
                             'W': wins,
                             'L': losses,
                             'T': ties,
@@ -420,15 +449,17 @@ def fetch_espn_fantasy_data(league_id):
                             h_score = m.get('home', {}).get('totalPoints', 0.0)
                             a_score = m.get('away', {}).get('totalPoints', 0.0)
                             
-                            home_team_info = teams_map.get(h_id, {'name': f"Team {h_id}", 'logo': ''})
-                            away_team_info = teams_map.get(a_id, {'name': f"Team {a_id}", 'logo': ''})
+                            home_info = teams_map.get(h_id, {'name': f"Team {h_id}", 'logo': '', 'manager': '-'})
+                            away_info = teams_map.get(a_id, {'name': f"Team {a_id}", 'logo': '', 'manager': '-'})
                             
                             current_matchups.append({
-                                'home_name': home_team_info['name'],
-                                'home_logo': home_team_info['logo'],
+                                'home_name': home_info['name'],
+                                'home_manager': home_info['manager'],
+                                'home_logo': home_info['logo'],
                                 'home_score': round(h_score, 2),
-                                'away_name': away_team_info['name'],
-                                'away_logo': away_team_info['logo'],
+                                'away_name': away_info['name'],
+                                'away_manager': away_info['manager'],
+                                'away_logo': away_info['logo'],
                                 'away_score': round(a_score, 2)
                             })
                             
@@ -1102,16 +1133,18 @@ with tab11:
             for idx, m in enumerate(fantasy_data['matchups']):
                 target_col = col_f1 if idx % 2 == 0 else col_f2
                 with target_col:
+                    h_m = f" <span style='font-size:0.8rem; color:#94a3b8;'>({m['home_manager']})</span>" if m['home_manager'] != '-' else ''
+                    a_m = f" <span style='font-size:0.8rem; color:#94a3b8;'>({m['away_manager']})</span>" if m['away_manager'] != '-' else ''
                     st.markdown(f"""
                         <div class='schedule-card'>
                             <div style='display: flex; justify-content: space-between; align-items: center;'>
                                 <div style='display: flex; align-items: center; gap: 8px;'>
                                     {'<img src="' + m['home_logo'] + '" width="30">' if m['home_logo'] else ''}
-                                    <b>{m['home_name']}</b>
+                                    <div><b>{m['home_name']}</b>{h_m}</div>
                                 </div>
                                 <div class='score-badge'>{m['home_score']} : {m['away_score']}</div>
                                 <div style='display: flex; align-items: center; gap: 8px;'>
-                                    <b>{m['away_name']}</b>
+                                    <div><b>{m['away_name']}</b>{a_m}</div>
                                     {'<img src="' + m['away_logo'] + '" width="30">' if m['away_logo'] else ''}
                                 </div>
                             </div>
