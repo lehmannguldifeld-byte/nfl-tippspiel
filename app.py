@@ -357,76 +357,94 @@ def get_nfl_games(week_num=1, season_type=2):
     except Exception:
         return []
 
-# --- ESPN FANTASY LEAGUE API FETCH (INTELLIGENT FALLBACK) ---
+# --- ESPN FANTASY LEAGUE API FETCH (INTELLIGENT HEADER + MULTI-YEAR CHECK) ---
 @st.cache_data(ttl=120)
 def fetch_espn_fantasy_data(league_id):
-    years_to_try = [2026, datetime.now().year]
+    years_to_try = [2026, 2025, 2024]
+    base_urls = [
+        "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{year}/segments/0/leagues/{league_id}",
+        "https://fantasy.espn.com/apis/v3/games/ffl/seasons/{year}/segments/0/leagues/{league_id}"
+    ]
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/json"
+    }
+
     cookies = {}
     espn_s2 = st.secrets.get("ESPN_S2")
     swid = st.secrets.get("ESPN_SWID")
     if espn_s2 and swid:
         cookies = {"espn_s2": espn_s2, "SWID": swid}
 
-    for season_year in set(years_to_try):
-        url = f"https://fantasy.espn.com/apis/v3/games/ffl/seasons/{season_year}/segments/0/leagues/{league_id}?view=mMatchupScore&view=mScoreboard&view=mTeam&view=mSettings"
-        try:
-            res = requests.get(url, cookies=cookies)
-            if res.status_code == 200:
-                data = res.json()
-                teams_map = {}
-                teams_list = []
-                for t in data.get('teams', []):
-                    name = f"{t.get('location', '')} {t.get('nickname', '')}".strip()
-                    if not name:
-                        name = f"Team {t.get('id')}"
-                    logo = t.get('logo', '')
-                    record = t.get('record', {}).get('overall', {})
-                    wins = record.get('wins', 0)
-                    losses = record.get('losses', 0)
-                    ties = record.get('ties', 0)
-                    points = record.get('pointsFor', 0.0)
-                    
-                    teams_map[t['id']] = {'name': name, 'logo': logo}
-                    teams_list.append({
-                        'Team': name,
-                        'W': wins,
-                        'L': losses,
-                        'T': ties,
-                        'Punkte': round(points, 1)
-                    })
+    last_error = ""
 
-                scoring_period = data.get('scoringPeriodId', 1)
-                schedule = data.get('schedule', [])
-                
-                current_matchups = []
-                for m in schedule:
-                    if m.get('matchupPeriodId') == scoring_period:
-                        h_id = m.get('home', {}).get('teamId')
-                        a_id = m.get('away', {}).get('teamId')
-                        h_score = m.get('home', {}).get('totalPoints', 0.0)
-                        a_score = m.get('away', {}).get('totalPoints', 0.0)
+    for year in years_to_try:
+        for base_url_template in base_urls:
+            url = base_url_template.format(year=year, league_id=league_id)
+            full_url = f"{url}?view=mMatchupScore&view=mScoreboard&view=mTeam&view=mSettings&view=mStandings"
+            try:
+                res = requests.get(full_url, headers=headers, cookies=cookies, timeout=6)
+                if res.status_code == 200:
+                    data = res.json()
+                    teams_map = {}
+                    teams_list = []
+                    for t in data.get('teams', []):
+                        name = f"{t.get('location', '')} {t.get('nickname', '')}".strip()
+                        if not name:
+                            name = f"Team {t.get('id')}"
+                        logo = t.get('logo', '')
+                        record = t.get('record', {}).get('overall', {})
+                        wins = record.get('wins', 0)
+                        losses = record.get('losses', 0)
+                        ties = record.get('ties', 0)
+                        points = record.get('pointsFor', 0.0)
                         
-                        home_team_info = teams_map.get(h_id, {'name': f"Team {h_id}", 'logo': ''})
-                        away_team_info = teams_map.get(a_id, {'name': f"Team {a_id}", 'logo': ''})
-                        
-                        current_matchups.append({
-                            'home_name': home_team_info['name'],
-                            'home_logo': home_team_info['logo'],
-                            'home_score': round(h_score, 2),
-                            'away_name': away_team_info['name'],
-                            'away_logo': away_team_info['logo'],
-                            'away_score': round(a_score, 2)
+                        teams_map[t['id']] = {'name': name, 'logo': logo}
+                        teams_list.append({
+                            'Team': name,
+                            'W': wins,
+                            'L': losses,
+                            'T': ties,
+                            'Punkte': round(points, 1)
                         })
-                        
-                return {
-                    'league_name': data.get('settings', {}).get('name', 'ESPN Fantasy League'),
-                    'week': scoring_period,
-                    'matchups': current_matchups,
-                    'standings': teams_list
-                }, None
-        except Exception:
-            pass
-    return None, "Konnte Liga-Daten von ESPN nicht abrufen."
+
+                    scoring_period = data.get('scoringPeriodId', 1)
+                    schedule = data.get('schedule', [])
+                    
+                    current_matchups = []
+                    for m in schedule:
+                        if m.get('matchupPeriodId') == scoring_period:
+                            h_id = m.get('home', {}).get('teamId')
+                            a_id = m.get('away', {}).get('teamId')
+                            h_score = m.get('home', {}).get('totalPoints', 0.0)
+                            a_score = m.get('away', {}).get('totalPoints', 0.0)
+                            
+                            home_team_info = teams_map.get(h_id, {'name': f"Team {h_id}", 'logo': ''})
+                            away_team_info = teams_map.get(a_id, {'name': f"Team {a_id}", 'logo': ''})
+                            
+                            current_matchups.append({
+                                'home_name': home_team_info['name'],
+                                'home_logo': home_team_info['logo'],
+                                'home_score': round(h_score, 2),
+                                'away_name': away_team_info['name'],
+                                'away_logo': away_team_info['logo'],
+                                'away_score': round(a_score, 2)
+                            })
+                            
+                    return {
+                        'league_name': data.get('settings', {}).get('name', 'ESPN Fantasy League'),
+                        'season': year,
+                        'week': scoring_period,
+                        'matchups': current_matchups,
+                        'standings': teams_list
+                    }, None
+                else:
+                    last_error = f"HTTP Status {res.status_code}"
+            except Exception as e:
+                last_error = str(e)
+
+    return None, last_error
 
 # --- PUNKTE LOGIK ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonus=True):
@@ -454,7 +472,6 @@ def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonu
                 if correct_ans and u_bonus.get(q_idx, "").strip().lower() == correct_ans.strip().lower():
                     scores[u] += 15
             
-            # Super Bowl Champion Bonus (+25 Pkt)
             sb_correct = bonus_results.get("sb_winner", "")
             u_sb = playoff_db.get(u, {}).get("sb_winner", "")
             if sb_correct and u_sb and u_sb.strip().lower() == sb_correct.strip().lower():
@@ -514,7 +531,6 @@ now = datetime.now()
 week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
 bonus_deadline = datetime(2026, 9, 10, 12, 0, 0)
 
-# PRÄZISE FRISTEN-LOGIK FÜR VERGANGENE / AKTUELLE / ZUKÜNFTIGE WOCHEN
 if woche < current_default_week:
     is_after_thursday_noon = True
 elif woche > current_default_week:
@@ -906,13 +922,12 @@ with tab7:
                     </div>
                 """, unsafe_allow_html=True)
 
-# --- TAB 8: SAISONVERLAUF (KORREKTE WOCHEN-SUMMIERUNG OHNE DUPLIZIERTE BONUS-PUNKTE) ---
+# --- TAB 8: SAISONVERLAUF ---
 with tab8:
     st.subheader("📈 Der Kampf um die Krone (Punkteverlauf)")
     history_data = {u: [0] for u in MITSPIELER}
     for w in range(1, woche + 1):
         w_games = get_nfl_games(week_num=w)
-        # include_bonus=False verhindert die Mehrfach-Hinzurechnung von Bonuspunkten in der Schleife!
         w_scores, _ = calculate_scores(w_games, week_num=w, include_bonus=False)
         for u in MITSPIELER:
             prev = history_data[u][-1]
@@ -1060,17 +1075,24 @@ with tab11:
     fantasy_data, err_msg = fetch_espn_fantasy_data(ESPN_LEAGUE_ID)
     
     if err_msg or not fantasy_data:
-        st.error("⚠️ **ESPN Liga nicht erreichbar oder als Privat markiert.**")
-        st.info("""
-            **So machst du eure Liga öffentlich (Empfohlen):**
-            1. Logge dich auf `fantasy.espn.com` ein.
-            2. Gehe zu **League** -> **Settings**.
-            3. Ändere die Sichtbarkeit unter **Make League Viewable to Public** auf **Yes**.
-            
-            *Falls die Liga privat bleiben soll, trage deinen `ESPN_S2` und `SWID` Cookie in Streamlit Secrets ein.*
-        """)
+        st.error(f"⚠️ **ESPN API Antwort:** {err_msg if err_msg else 'Keine Daten erhalten'}")
+        
+        with st.expander("🛠️ Fehlerbehebung & Cookies hinterlegen"):
+            st.markdown("""
+                ### Warum kommt dieser Fehler?
+                1. **Öffentliche Freigabe bei ESPN:** Selbst wenn eine Liga auf *Public* gestellt ist, verlangt ESPN vor Beginn der neuen Saison manchmal zwingend Session-Cookies.
+                2. **So fügst du deine Cookies in Streamlit ein (Dauert 1 Minute):**
+                   - Gehe auf `fantasy.espn.com` und drücke `F12` im Browser.
+                   - Klicke oben auf **Anwendung (Application)** -> **Cookies** -> `https://fantasy.espn.com`.
+                   - Kopiere die Werte von **`espn_s2`** und **`SWID`**.
+                   - Trage sie in deinen Streamlit Cloud Settings unter **Secrets** so ein:
+                     ```toml
+                     ESPN_S2 = "dein_espn_s2_wert"
+                     ESPN_SWID = "{deine_swid}"
+                     ```
+            """)
     else:
-        st.success(f"🏆 **{fantasy_data['league_name']}** — Spieltag {fantasy_data['week']}")
+        st.success(f"🏆 **{fantasy_data['league_name']}** (Saison {fantasy_data['season']}) — Spieltag {fantasy_data['week']}")
         
         st.markdown("### ⚔️ Live-Matchups dieser Woche")
         if not fantasy_data['matchups']:
