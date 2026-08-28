@@ -60,7 +60,16 @@
         }
     },
     "bonus_db": {
-        "Andy": {},
+        "Andy": {
+            "q_0": "Goff",
+            "q_1": "Robinson",
+            "q_2": "67",
+            "q_3": "Cardinals",
+            "q_4": "Rams",
+            "q_5": "15-2",
+            "q_6": "Allen",
+            "q_7": "Rams"
+        },
         "Ronny": {},
         "Bauzzen": {},
         "B\u00f6ssi": {},
@@ -110,7 +119,9 @@
         "18": "Noch offen"
     },
     "playoff_db": {
-        "Andy": {},
+        "Andy": {
+            "sb_winner": "Rams"
+        },
         "Ronny": {},
         "Bauzzen": {},
         "B\u00f6ssi": {},
