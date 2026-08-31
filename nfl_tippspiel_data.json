@@ -107,7 +107,16 @@
         "Ronny": {},
         "Bauzzen": {},
         "B\u00f6ssi": {},
-        "Jerome": {},
+        "Jerome": {
+            "q_0": "",
+            "q_1": "",
+            "q_2": "",
+            "q_3": "",
+            "q_4": "",
+            "q_5": "",
+            "q_6": "",
+            "q_7": ""
+        },
         "M\u00e4ni": {},
         "Domi": {},
         "P\u00e4du": {}
@@ -159,7 +168,9 @@
         "Ronny": {},
         "Bauzzen": {},
         "B\u00f6ssi": {},
-        "Jerome": {},
+        "Jerome": {
+            "sb_winner": "Los Angeles Rams"
+        },
         "M\u00e4ni": {},
         "Domi": {},
         "P\u00e4du": {}
