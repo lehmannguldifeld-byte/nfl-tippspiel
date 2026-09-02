@@ -151,7 +151,16 @@
             "q_6": "Josh Allen",
             "q_7": "Los Angeles Rams"
         },
-        "M\u00e4ni": {},
+        "M\u00e4ni": {
+            "q_0": "Matthew Stafford",
+            "q_1": "Bijan Robinson",
+            "q_2": "69",
+            "q_3": "Miami Dolphins",
+            "q_4": "Buffalo Bills",
+            "q_5": "14-3",
+            "q_6": "Josh Allen",
+            "q_7": ""
+        },
         "Domi": {},
         "P\u00e4du": {}
     },
@@ -205,7 +214,9 @@
         "Jerome": {
             "sb_winner": "Los Angeles Rams"
         },
-        "M\u00e4ni": {},
+        "M\u00e4ni": {
+            "sb_winner": "Buffalo Bills"
+        },
         "Domi": {},
         "P\u00e4du": {}
     }
