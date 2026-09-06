@@ -138,7 +138,16 @@
             "q_6": "Allen",
             "q_7": "Rams"
         },
-        "Ronny": {},
+        "Ronny": {
+            "q_0": "Stafford",
+            "q_1": "Dart",
+            "q_2": "",
+            "q_3": "Cardinals ",
+            "q_4": "Rams",
+            "q_5": "14-3",
+            "q_6": "Allen",
+            "q_7": "Rams"
+        },
         "Bauzzen": {},
         "B\u00f6ssi": {},
         "Jerome": {
@@ -208,7 +217,9 @@
         "Andy": {
             "sb_winner": "Rams"
         },
-        "Ronny": {},
+        "Ronny": {
+            "sb_winner": "LA Rams"
+        },
         "Bauzzen": {},
         "B\u00f6ssi": {},
         "Jerome": {
