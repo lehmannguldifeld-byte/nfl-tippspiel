@@ -170,7 +170,16 @@
             "q_6": "Josh Allen",
             "q_7": "Buffalo Bills"
         },
-        "Domi": {},
+        "Domi": {
+            "q_0": "Smith-Njigba",
+            "q_1": "McCaffrey",
+            "q_2": "65",
+            "q_3": "Browns",
+            "q_4": "Rams",
+            "q_5": "16-1",
+            "q_6": "Josh Allen",
+            "q_7": "Rams"
+        },
         "P\u00e4du": {}
     },
     "bonus_results": {},
@@ -228,7 +237,9 @@
         "M\u00e4ni": {
             "sb_winner": "Buffalo Bills"
         },
-        "Domi": {},
+        "Domi": {
+            "sb_winner": "Seahawks"
+        },
         "P\u00e4du": {}
     }
 }
