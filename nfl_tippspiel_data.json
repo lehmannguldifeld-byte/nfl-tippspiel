@@ -149,7 +149,16 @@
             "q_6": "Allen",
             "q_7": "Rams"
         },
-        "Bauzzen": {},
+        "Bauzzen": {
+            "q_0": "Jaxon-Smith Njigba",
+            "q_1": "Jahmyr Gibbs",
+            "q_2": "",
+            "q_3": "Miami Dolphins",
+            "q_4": "Detroit Lions",
+            "q_5": "15-2",
+            "q_6": "",
+            "q_7": "Detroit Lions"
+        },
         "B\u00f6ssi": {},
         "Jerome": {
             "q_0": "Puka Nacua",
@@ -244,7 +253,9 @@
         "Ronny": {
             "sb_winner": "LA Rams"
         },
-        "Bauzzen": {},
+        "Bauzzen": {
+            "sb_winner": "Detroit Lions"
+        },
         "B\u00f6ssi": {},
         "Jerome": {
             "sb_winner": "Los Angeles Rams"
