@@ -180,7 +180,16 @@
             "q_6": "Josh Allen",
             "q_7": "Rams"
         },
-        "P\u00e4du": {}
+        "P\u00e4du": {
+            "q_0": "Chase",
+            "q_1": "Robinson",
+            "q_2": "67",
+            "q_3": "Carolina",
+            "q_4": "Detroit Lions",
+            "q_5": "14-3",
+            "q_6": "Josh Allen",
+            "q_7": "Detroit Lions"
+        }
     },
     "bonus_results": {},
     "joker_db": {
@@ -240,6 +249,8 @@
         "Domi": {
             "sb_winner": "Seahawks"
         },
-        "P\u00e4du": {}
+        "P\u00e4du": {
+            "sb_winner": "Los Angeles Rams"
+        }
     }
 }
