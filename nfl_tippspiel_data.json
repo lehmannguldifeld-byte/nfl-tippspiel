@@ -160,14 +160,14 @@
             "q_7": "Detroit Lions"
         },
         "B\u00f6ssi": {
-            "q_0": "",
-            "q_1": "",
-            "q_2": "",
-            "q_3": "",
-            "q_4": "",
-            "q_5": "",
-            "q_6": "",
-            "q_7": ""
+            "q_0": "Dak Prescott",
+            "q_1": "Jonathan Taylor",
+            "q_2": "68",
+            "q_3": "Arizona Cardinals",
+            "q_4": "Los Angeles Rams",
+            "q_5": "14-3",
+            "q_6": "Josh Allen",
+            "q_7": "Detroit Lions"
         },
         "Jerome": {
             "q_0": "Puka Nacua",
@@ -266,7 +266,7 @@
             "sb_winner": "Detroit Lions"
         },
         "B\u00f6ssi": {
-            "sb_winner": ""
+            "sb_winner": "Los Angeles Rams"
         },
         "Jerome": {
             "sb_winner": "Los Angeles Rams"
