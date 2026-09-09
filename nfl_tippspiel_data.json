@@ -159,7 +159,16 @@
             "q_6": "Lamar Jackson",
             "q_7": "Detroit Lions"
         },
-        "B\u00f6ssi": {},
+        "B\u00f6ssi": {
+            "q_0": "",
+            "q_1": "",
+            "q_2": "",
+            "q_3": "",
+            "q_4": "",
+            "q_5": "",
+            "q_6": "",
+            "q_7": ""
+        },
         "Jerome": {
             "q_0": "Puka Nacua",
             "q_1": "Jonathan Taylor",
@@ -256,7 +265,9 @@
         "Bauzzen": {
             "sb_winner": "Detroit Lions"
         },
-        "B\u00f6ssi": {},
+        "B\u00f6ssi": {
+            "sb_winner": ""
+        },
         "Jerome": {
             "sb_winner": "Los Angeles Rams"
         },
