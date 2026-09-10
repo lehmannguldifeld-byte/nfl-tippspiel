@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import json
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import pandas as pd
 import numpy as np
 import os
@@ -166,6 +167,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- SCHWEIZER ZEITZONE HELPER ---
+def get_swiss_now():
+    return datetime.now(ZoneInfo("Europe/Zurich")).replace(tzinfo=None)
+
 # --- PASSWÖRTER & MITSPIELER LISTE ---
 PASSWORDS = {
     "Andy": "andy2026", "Ronny": "ronny2026", "Bauzzen": "bauzzen2026", "Bössi": "boessi2026",
@@ -184,7 +189,6 @@ BONUS_QUESTIONS = [
     "8) Team mit den meisten Punkten der Saison"
 ]
 
-# NFL Saison-Sonntage 2026/27
 WEEK_SUNDAYS = {
     "1": "13.09.2026", "2": "20.09.2026", "3": "27.09.2026", "4": "04.10.2026",
     "5": "11.10.2026", "6": "18.10.2026", "7": "25.10.2026", "8": "01.11.2026",
@@ -193,11 +197,9 @@ WEEK_SUNDAYS = {
     "17": "03.01.2027", "18": "10.01.2027"
 }
 
-# --- SESSION STATE LOGIN VERWALTUNG ---
 if "logged_user" not in st.session_state:
     st.session_state["logged_user"] = None
 
-# --- DATENBANK VERWALTUNG ---
 DB_FILE = "nfl_tippspiel_data.json"
 
 def clean_dict_data(data):
@@ -300,7 +302,7 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, 
 tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db = load_db()
 
 def get_current_nfl_week():
-    now = datetime.now()
+    now = get_swiss_now()
     week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
     if now < week1_deadline:
         return 1
@@ -310,7 +312,6 @@ def get_current_nfl_week():
 
 current_default_week = get_current_nfl_week()
 
-# --- ESPN API FOR NFL GAMES ---
 @st.cache_data(ttl=300)
 def get_nfl_games(week_num=1, season_type=2):
     season_year = 2026
@@ -357,7 +358,6 @@ def get_nfl_games(week_num=1, season_type=2):
     except Exception:
         return []
 
-# --- ESPN FANTASY LEAGUE API FETCH (INTELLIGENT MEMBER & TEAM PARSER) ---
 @st.cache_data(ttl=120)
 def fetch_espn_fantasy_data(league_id):
     years_to_try = [2026, 2025, 2024]
@@ -388,7 +388,6 @@ def fetch_espn_fantasy_data(league_id):
                 if res.status_code == 200:
                     data = res.json()
                     
-                    # 1. MEMBERS / MANAGER DIRECTORY MAP
                     members_map = {}
                     for m in data.get('members', []):
                         m_id = m.get('id')
@@ -399,7 +398,6 @@ def fetch_espn_fantasy_data(league_id):
                         if m_id:
                             members_map[m_id] = full_name
 
-                    # 2. TEAMS RESOLUTION WITH MANAGER NAMES
                     teams_map = {}
                     teams_list = []
                     for t in data.get('teams', []):
@@ -407,11 +405,9 @@ def fetch_espn_fantasy_data(league_id):
                         loc = t.get('location', '').strip()
                         nick = t.get('nickname', '').strip()
                         
-                        # Find Owner / Manager Name
                         owners = t.get('owners', [])
                         owner_name = members_map.get(owners[0], '') if owners else ''
                         
-                        # Build clean display name
                         if loc and nick and loc.lower() != "team":
                             team_name = f"{loc} {nick}"
                         elif nick and nick != str(t_id):
@@ -477,7 +473,6 @@ def fetch_espn_fantasy_data(league_id):
 
     return None, last_error
 
-# --- PUNKTE LOGIK ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonus=True):
     scores = {u: 0 for u in MITSPIELER}
     weekly_hits = {u: 0 for u in MITSPIELER}
@@ -513,7 +508,6 @@ def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonu
 # --- APP UI HEADER & LOGIN SYSTEM ---
 st.markdown("<h1 class='main-title'>🏈 NFL TIPPSPIEL 2026/27</h1>", unsafe_allow_html=True)
 
-# LOGIN BANNER / SYSTEM
 with st.container():
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
     with col_l2:
@@ -526,7 +520,7 @@ with st.container():
             with col_p:
                 pass_try = st.text_input("Passwort", type="password", key="global_pass")
             with col_b:
-                st.write("") # Spacer
+                st.write("")
                 if st.button("🔓 Login"):
                     if PASSWORDS.get(user_try) == pass_try:
                         st.session_state["logged_user"] = user_try
@@ -546,7 +540,6 @@ with st.container():
                 st.session_state["logged_user"] = None
                 st.rerun()
 
-# WOCHEN SLIDER
 c1, c2, c3 = st.columns([1, 2, 1])
 with c2:
     woche = st.slider("Woche / Spieltag auswählen", min_value=1, max_value=18, value=current_default_week)
@@ -558,7 +551,8 @@ scores, hits = calculate_scores(nfl_games, phase=phase_choice, week_num=woche, i
 sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if (len(sorted_scores) >= 2 and woche > 1) else []
 
-now = datetime.now()
+# --- PRÄZISE ZEITZONEN-GERECHNETE FRISTEN (SCHWEIZ / CEST) ---
+now = get_swiss_now()
 week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
 bonus_deadline = datetime(2026, 9, 10, 12, 0, 0)
 
@@ -864,7 +858,7 @@ with tab5:
                     comments_db[str(woche)].append({
                         "user": curr_u,
                         "text": c_text.strip(),
-                        "time": datetime.now().strftime("%H:%M")
+                        "time": get_swiss_now().strftime("%H:%M")
                     })
                     save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db)
                     st.success("Spruch gepostet!")
