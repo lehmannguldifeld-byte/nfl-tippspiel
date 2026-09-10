@@ -473,6 +473,7 @@ def fetch_espn_fantasy_data(league_id):
 
     return None, last_error
 
+# --- BERECHNUNG DER PUNKTE FÜR EINE EINZELNE WOCHE ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonus=True):
     scores = {u: 0 for u in MITSPIELER}
     weekly_hits = {u: 0 for u in MITSPIELER}
@@ -504,6 +505,34 @@ def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonu
                 scores[u] += 25
 
     return scores, weekly_hits
+
+# --- KUMULATIVE PUNKTE-BERECHNUNG (KUMULIERT VON WOCHE 1 BIS TARGET_WEEK) ---
+def get_cumulative_scores(target_week):
+    total_scores = {u: 0 for u in MITSPIELER}
+    current_week_hits = {u: 0 for u in MITSPIELER}
+    
+    for w in range(1, target_week + 1):
+        w_games = get_nfl_games(week_num=w)
+        w_phase = "Regular Season" if w <= 18 else "Playoffs"
+        w_scores, w_hits = calculate_scores(w_games, phase=w_phase, week_num=w, include_bonus=False)
+        for u in MITSPIELER:
+            total_scores[u] += w_scores[u]
+        if w == target_week:
+            current_week_hits = w_hits
+            
+    # Saison-Bonuspunkte einmalig auf den Gesamthandstand aufrechnen
+    for u in MITSPIELER:
+        u_bonus = bonus_db.get(u, {})
+        for q_idx, correct_ans in bonus_results.items():
+            if correct_ans and u_bonus.get(q_idx, "").strip().lower() == correct_ans.strip().lower():
+                total_scores[u] += 15
+        
+        sb_correct = bonus_results.get("sb_winner", "")
+        u_sb = playoff_db.get(u, {}).get("sb_winner", "")
+        if sb_correct and u_sb and u_sb.strip().lower() == sb_correct.strip().lower():
+            total_scores[u] += 25
+
+    return total_scores, current_week_hits
 
 # --- APP UI HEADER & LOGIN SYSTEM ---
 st.markdown("<h1 class='main-title'>🏈 NFL TIPPSPIEL 2026/27</h1>", unsafe_allow_html=True)
@@ -546,7 +575,7 @@ with c2:
     phase_choice = "Regular Season" if woche <= 18 else "Playoffs"
 
 nfl_games = get_nfl_games(week_num=woche, season_type=2)
-scores, hits = calculate_scores(nfl_games, phase=phase_choice, week_num=woche, include_bonus=True)
+scores, hits = get_cumulative_scores(woche)
 
 sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if (len(sorted_scores) >= 2 and woche > 1) else []
@@ -710,7 +739,7 @@ with tab1:
 
 # --- TAB 2: LEADERBOARD ---
 with tab2:
-    st.subheader(f"Gesamtwertung — Woche {woche}")
+    st.subheader(f"Gesamtwertung — Stand Woche {woche}")
     for rank, (user, score) in enumerate(sorted_scores, 1):
         badge = "🥇" if rank == 1 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else f"#{rank}"))
         fire = " 🔥 ON FIRE (+10 Bonus!)" if hits[user] >= 6 else ""
