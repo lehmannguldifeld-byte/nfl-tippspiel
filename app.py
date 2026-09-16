@@ -301,13 +301,15 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, 
 
 tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db = load_db()
 
+# --- INTELLIGENTE WOCHEN-UMSCHALTUNG (SPRINGT DIENSTAG 00:00 AUF DIE NÄCHSTE WOCHE) ---
 def get_current_nfl_week():
     now = get_swiss_now()
-    week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
-    if now < week1_deadline:
+    # Woche 1 läuft bis Dienstag, 15.09.2026 um 00:00 Uhr
+    week1_switch = datetime(2026, 9, 15, 0, 0, 0)
+    if now < week1_switch:
         return 1
-    days_diff = (now - week1_deadline).days
-    calc_week = 1 + (days_diff // 7)
+    days_diff = (now - week1_switch).days
+    calc_week = 2 + (days_diff // 7)
     return min(max(calc_week, 1), 18)
 
 current_default_week = get_current_nfl_week()
