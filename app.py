@@ -304,7 +304,6 @@ tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db =
 # --- INTELLIGENTE WOCHEN-UMSCHALTUNG (SPRINGT DIENSTAG 00:00 AUF DIE NÄCHSTE WOCHE) ---
 def get_current_nfl_week():
     now = get_swiss_now()
-    # Woche 1 läuft bis Dienstag, 15.09.2026 um 00:00 Uhr
     week1_switch = datetime(2026, 9, 15, 0, 0, 0)
     if now < week1_switch:
         return 1
@@ -587,6 +586,9 @@ now = get_swiss_now()
 week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
 bonus_deadline = datetime(2026, 9, 10, 12, 0, 0)
 
+# SONDERREGELUNG WOCHE 3: Frist bis Donnerstag, 24.09.2026, 21:00 Uhr verlängert
+week3_extended_deadline = datetime(2026, 9, 24, 21, 0, 0)
+
 if woche < current_default_week:
     is_after_thursday_noon = True
 elif woche > current_default_week:
@@ -594,6 +596,8 @@ elif woche > current_default_week:
 else:
     if woche == 1:
         is_after_thursday_noon = now >= week1_deadline
+    elif woche == 3:
+        is_after_thursday_noon = now >= week3_extended_deadline
     else:
         is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
@@ -645,7 +649,7 @@ with tab1:
             st.write("📲 **Gruppe benachrichtigen / erinnern:**")
             if missing_users:
                 missing_str = ", ".join(missing_users)
-                msg = f"Hallo Leute! 🏈 Kurze Erinnerung für Woche {woche}: Folgende Spieler müssen noch tippen: {missing_str}. Deadline ist Donnerstag um 12:00 Uhr!"
+                msg = f"Hallo Leute! 🏈 Kurze Erinnerung für Woche {woche}: Folgende Spieler müssen noch tippen: {missing_str}. Deadline ist HEUTE um 21:00 Uhr!"
                 encoded_msg = urllib.parse.quote(msg)
                 st.markdown(f'<a href="https://api.whatsapp.com/send?text={encoded_msg}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;">💬 WhatsApp-Erinnerung senden</button></a>', unsafe_allow_html=True)
             else:
@@ -662,6 +666,8 @@ with tab1:
         else:
             if woche == 1:
                 st.info("⏳ Tippabgabe für Woche 1 offen! Frist: **Donnerstag, 10.09.2026 um 12:00 Uhr**.")
+            elif woche == 3:
+                st.info("⏳ **Ausnahme für Woche 3:** Tippabgabe verlängert bis **heute Donnerstag, 24.09. um 21:00 Uhr**!")
             else:
                 st.info(f"⏳ Tippabgabe offen! Deadline für Woche {woche}: Dieser Donnerstag um 12:00 Uhr mittags.")
 
@@ -773,7 +779,10 @@ with tab3:
         return style
 
     if not is_after_thursday_noon:
-        st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
+        if woche == 3:
+            st.warning("🔒 Die echten Tipps für Woche 3 werden heute um **21:00 Uhr** freigeschaltet!")
+        else:
+            st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
     else:
         if not nfl_games:
             st.info("Keine Spiele gefunden.")
@@ -865,7 +874,7 @@ with tab5:
         if diff_count == 0 and is_after_thursday_noon:
             st.success("Beide Spieler haben in dieser Woche exakt dieselben Teams getippt!")
         elif not is_after_thursday_noon:
-            st.warning("🔒 Der direkte Tipp-Vergleich schaltet sich am Donnerstag um 12:00 Uhr frei!")
+            st.warning("🔒 Der direkte Tipp-Vergleich schaltet sich am Donnerstag nach Ablauf der Frist frei!")
 
     st.markdown("---")
     st.subheader("💬 Trash Talk Pinnwand")
