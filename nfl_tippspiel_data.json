@@ -582,7 +582,9 @@
     "bonus_results": {},
     "joker_db": {
         "Andy": {},
-        "Ronny": {},
+        "Ronny": {
+            "4": null
+        },
         "Bauzzen": {
             "2": "401872938"
         },
