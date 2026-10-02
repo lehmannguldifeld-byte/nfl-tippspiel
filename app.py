@@ -9,11 +9,180 @@ import os
 import base64
 import urllib.parse
 
-# --- SEITEN-KONFIGURATION & STADION-FLUTLICHT DESIGN ---
+# --- SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
 
-# ESPN FANTASY LEAGUE CONFIG
-ESPN_LEAGUE_ID = "434475025"
+# SLEEPER FANTASY LEAGUE CONFIG
+SLEEPER_LEAGUE_ID = "1410923268445114368"
+
+# --- PASSWÖRTER & MITSPIELER LISTE ---
+PASSWORDS = {
+    "Andy": "andy2026", "Ronny": "ronny2026", "Bauzzen": "bauzzen2026", "Bössi": "boessi2026",
+    "Jerome": "jerome2026", "Mäni": "maeni2026", "Domi": "domi2026", "Pädu": "paedu2026"
+}
+MITSPIELER = list(PASSWORDS.keys())
+
+# --- SESSION STATE LOGIN VERWALTUNG ---
+if "logged_user" not in st.session_state:
+    st.session_state["logged_user"] = None
+
+# --- DYNAMISCHES DESIGN (BÖSSI HIGH-CONTRAST MOBILE MODE VS. STADION DESIGN) ---
+active_user_check = st.session_state.get("logged_user")
+
+if active_user_check == "Bössi":
+    # Barrierefreies, mattes Dunkelblau mit maximalem Textkontrast für Bössi
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #0f172a !important;
+            background-image: none !important;
+            color: #ffffff !important;
+        }
+        .main-title {
+            text-align: center;
+            font-size: 3rem;
+            font-weight: 900;
+            color: #38bdf8 !important;
+            text-shadow: none !important;
+            margin-bottom: 10px;
+        }
+        .leaderboard-card, .game-card-compact, .schedule-card, .host-card, .redzone-card, .chat-bubble, .login-box, .admin-box {
+            background-color: #1e293b !important;
+            border: 2px solid #475569 !important;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            color: #ffffff !important;
+            box-shadow: none !important;
+        }
+        .team-name { font-size: 1.05rem !important; font-weight: 900 !important; color: #ffffff !important; }
+        .score-badge { background-color: #0284c7 !important; color: #ffffff !important; font-weight: 900 !important; }
+        </style>
+    """, unsafe_allow_html=True)
+else:
+    # Reguläres Stadion-Flutlicht Design
+    st.markdown("""
+        <style>
+        .stApp {
+            background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.45) 0%, rgba(30, 41, 59, 0.85) 55%, rgba(15, 23, 42, 0.98) 100%),
+                        url('https://images.unsplash.com/photo-1566577739112-5180d4bf9390?auto=format&fit=crop&w=1920&q=80');
+            background-size: cover;
+            background-attachment: fixed;
+            color: #f8fafc;
+        }
+        .main-title {
+            text-align: center;
+            font-size: 3rem;
+            font-weight: 900;
+            color: #0284c7;
+            text-shadow: 0 0 18px rgba(255, 255, 255, 0.8), 0 0 30px rgba(56, 189, 248, 0.5);
+            margin-bottom: 10px;
+        }
+        
+        .leaderboard-card {
+            background: rgba(30, 41, 59, 0.90);
+            border-left: 6px solid #38bdf8;
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(4px);
+        }
+        .game-card-compact {
+            background-color: rgba(30, 41, 59, 0.88);
+            border-radius: 10px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            margin-bottom: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .schedule-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            backdrop-filter: blur(6px);
+        }
+        .host-card {
+            background: rgba(30, 41, 59, 0.90);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 12px;
+            padding: 14px 20px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .host-card-next {
+            background: linear-gradient(135deg, rgba(2, 132, 199, 0.4) 0%, rgba(30, 41, 59, 0.95) 100%);
+            border: 2px solid #38bdf8;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        }
+        .redzone-card {
+            background: linear-gradient(135deg, rgba(225, 29, 72, 0.25) 0%, rgba(30, 41, 59, 0.95) 100%);
+            border: 2px solid #f43f5e;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 15px;
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.3);
+        }
+        .team-box-left { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+        .team-box-right { display: flex; align-items: center; justify-content: flex-start; gap: 6px; }
+        .team-name { font-size: 0.95rem; font-weight: 800; color: #f8fafc; }
+        .score-badge {
+            font-size: 1.2rem;
+            font-weight: 900;
+            color: #38bdf8;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .winner-highlight { color: #f59e0b !important; text-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+
+        .stTextInput input, .stSelectbox select {
+            color: #ffffff !important;
+            background-color: rgba(15, 23, 42, 0.8) !important;
+            border: 1px solid #38bdf8 !important;
+            border-radius: 8px !important;
+        }
+        .stTextInput label, .stSelectbox label { color: #f8fafc !important; font-weight: 600 !important; }
+        
+        .chat-bubble {
+            background: rgba(30, 41, 59, 0.85);
+            border-left: 4px solid #38bdf8;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .login-box {
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #38bdf8;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .admin-box {
+            background: rgba(15, 23, 42, 0.95);
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+# --- SCHWEIZER ZEITZONE HELPER ---
+def get_swiss_now():
+    return datetime.now(ZoneInfo("Europe/Zurich")).replace(tzinfo=None)
 
 # --- OFFIZIELLE NFL TEAM FARBEN ---
 TEAM_COLORS = {
@@ -26,157 +195,6 @@ TEAM_COLORS = {
     "NYJ": "#125740", "PHI": "#004C54", "PIT": "#FFB612", "SF":  "#AA0000",
     "SEA": "#002244", "TB":  "#D50A0A", "TEN": "#0C2340", "WAS": "#5A1414"
 }
-
-st.markdown("""
-    <style>
-    /* Stadion-Flutlicht Effect Background */
-    .stApp {
-        background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.45) 0%, rgba(30, 41, 59, 0.85) 55%, rgba(15, 23, 42, 0.98) 100%),
-                    url('https://images.unsplash.com/photo-1566577739112-5180d4bf9390?auto=format&fit=crop&w=1920&q=80');
-        background-size: cover;
-        background-attachment: fixed;
-        color: #f8fafc;
-    }
-    .main-title {
-        text-align: center;
-        font-size: 3rem;
-        font-weight: 900;
-        color: #0284c7;
-        text-shadow: 0 0 18px rgba(255, 255, 255, 0.8), 0 0 30px rgba(56, 189, 248, 0.5);
-        margin-bottom: 10px;
-    }
-    
-    .leaderboard-card {
-        background: rgba(30, 41, 59, 0.90);
-        border-left: 6px solid #38bdf8;
-        border-radius: 12px;
-        padding: 16px 24px;
-        margin-bottom: 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-        backdrop-filter: blur(4px);
-    }
-    .game-card-compact {
-        background-color: rgba(30, 41, 59, 0.88);
-        border-radius: 10px;
-        padding: 8px 12px;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        margin-bottom: 8px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    }
-
-    .schedule-card {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
-        border: 1px solid rgba(56, 189, 248, 0.3);
-        border-radius: 16px;
-        padding: 16px 20px;
-        margin-bottom: 16px;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.4);
-        backdrop-filter: blur(6px);
-    }
-    .host-card {
-        background: rgba(30, 41, 59, 0.90);
-        border: 1px solid rgba(56, 189, 248, 0.2);
-        border-radius: 12px;
-        padding: 14px 20px;
-        margin-bottom: 10px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    .host-card-next {
-        background: linear-gradient(135deg, rgba(2, 132, 199, 0.4) 0%, rgba(30, 41, 59, 0.95) 100%);
-        border: 2px solid #38bdf8;
-        box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
-    }
-    .redzone-card {
-        background: linear-gradient(135deg, rgba(225, 29, 72, 0.25) 0%, rgba(30, 41, 59, 0.95) 100%);
-        border: 2px solid #f43f5e;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 15px;
-        box-shadow: 0 0 15px rgba(244, 63, 94, 0.3);
-    }
-    .team-box-left {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 6px;
-    }
-    .team-box-right {
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 6px;
-    }
-    .team-name {
-        font-size: 0.95rem;
-        font-weight: 800;
-        color: #f8fafc;
-    }
-    .score-badge {
-        font-size: 1.2rem;
-        font-weight: 900;
-        color: #38bdf8;
-        background: rgba(15, 23, 42, 0.8);
-        padding: 4px 10px;
-        border-radius: 8px;
-        border: 1px solid rgba(255,255,255,0.1);
-    }
-    .winner-highlight {
-        color: #f59e0b !important;
-        text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
-    }
-
-    .stTextInput input, .stSelectbox select {
-        color: #ffffff !important;
-        background-color: rgba(15, 23, 42, 0.8) !important;
-        border: 1px solid #38bdf8 !important;
-        border-radius: 8px !important;
-    }
-    .stTextInput label, .stSelectbox label {
-        color: #f8fafc !important;
-        font-weight: 600 !important;
-    }
-    
-    .chat-bubble {
-        background: rgba(30, 41, 59, 0.85);
-        border-left: 4px solid #38bdf8;
-        padding: 10px 15px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-    }
-    .login-box {
-        background: rgba(30, 41, 59, 0.95);
-        border: 1px solid #38bdf8;
-        border-radius: 12px;
-        padding: 15px;
-        margin-bottom: 20px;
-        text-align: center;
-    }
-    .admin-box {
-        background: rgba(15, 23, 42, 0.95);
-        border: 2px solid #f59e0b;
-        border-radius: 12px;
-        padding: 15px;
-        margin-bottom: 20px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- SCHWEIZER ZEITZONE HELPER ---
-def get_swiss_now():
-    return datetime.now(ZoneInfo("Europe/Zurich")).replace(tzinfo=None)
-
-# --- PASSWÖRTER & MITSPIELER LISTE ---
-PASSWORDS = {
-    "Andy": "andy2026", "Ronny": "ronny2026", "Bauzzen": "bauzzen2026", "Bössi": "boessi2026",
-    "Jerome": "jerome2026", "Mäni": "maeni2026", "Domi": "domi2026", "Pädu": "paedu2026"
-}
-MITSPIELER = list(PASSWORDS.keys())
 
 BONUS_QUESTIONS = [
     "1) Spieler mit den meisten Yards in der Luft (Passing Yards)",
@@ -196,9 +214,6 @@ WEEK_SUNDAYS = {
     "13": "06.12.2026", "14": "13.12.2026", "15": "20.12.2026", "16": "27.12.2026",
     "17": "03.01.2027", "18": "10.01.2027"
 }
-
-if "logged_user" not in st.session_state:
-    st.session_state["logged_user"] = None
 
 DB_FILE = "nfl_tippspiel_data.json"
 
@@ -301,7 +316,6 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, 
 
 tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db = load_db()
 
-# --- INTELLIGENTE WOCHEN-UMSCHALTUNG (SPRINGT DIENSTAG 00:00 AUF DIE NÄCHSTE WOCHE) ---
 def get_current_nfl_week():
     now = get_swiss_now()
     week1_switch = datetime(2026, 9, 15, 0, 0, 0)
@@ -359,122 +373,112 @@ def get_nfl_games(week_num=1, season_type=2):
     except Exception:
         return []
 
+# --- SLEEPER FANTASY API INTEGRATION (FAST & PUBLIC) ---
 @st.cache_data(ttl=120)
-def fetch_espn_fantasy_data(league_id):
-    years_to_try = [2026, 2025, 2024]
-    base_urls = [
-        "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{year}/segments/0/leagues/{league_id}",
-        "https://fantasy.espn.com/apis/v3/games/ffl/seasons/{year}/segments/0/leagues/{league_id}"
-    ]
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "application/json"
-    }
+def fetch_sleeper_fantasy_data(league_id, week_num):
+    base_url = f"https://api.sleeper.app/v1/league/{league_id}"
+    try:
+        # 1. League Details
+        league_res = requests.get(base_url, timeout=5).json()
+        league_name = league_res.get("name", "Sleeper Fantasy League")
+        season = league_res.get("season", "2026")
 
-    cookies = {}
-    espn_s2 = st.secrets.get("ESPN_S2")
-    swid = st.secrets.get("ESPN_SWID")
-    if espn_s2 and swid:
-        cookies = {"espn_s2": espn_s2, "SWID": swid}
+        # 2. Users (user_id -> display_name, team_name, avatar)
+        users_res = requests.get(f"{base_url}/users", timeout=5).json()
+        users_map = {}
+        for u in users_res:
+            u_id = u.get("user_id")
+            disp_name = u.get("display_name", f"User {u_id}")
+            meta_team_name = u.get("metadata", {}).get("team_name") if u.get("metadata") else None
+            team_name = meta_team_name if meta_team_name else disp_name
+            
+            avatar_id = u.get("avatar")
+            avatar_url = f"https://sleepercdn.com/avatars/thumbs/{avatar_id}" if avatar_id else "https://sleepercdn.com/images/v2/icons/player_default.webp"
+            
+            users_map[u_id] = {
+                "display_name": disp_name,
+                "team_name": team_name,
+                "avatar": avatar_url
+            }
 
-    last_error = ""
+        # 3. Rosters & Standings
+        rosters_res = requests.get(f"{base_url}/rosters", timeout=5).json()
+        rosters_map = {}
+        standings_list = []
+        
+        for r in rosters_res:
+            r_id = r.get("roster_id")
+            owner_id = r.get("owner_id")
+            u_info = users_map.get(owner_id, {"display_name": f"Team {r_id}", "team_name": f"Team {r_id}", "avatar": ""})
+            
+            settings = r.get("settings", {})
+            wins = settings.get("wins", 0)
+            losses = settings.get("losses", 0)
+            ties = settings.get("ties", 0)
+            fpts = settings.get("fpts", 0) + (settings.get("fpts_decimal", 0) / 100.0)
+            fpts_against = settings.get("fpts_against", 0) + (settings.get("fpts_against_decimal", 0) / 100.0)
+            
+            rosters_map[r_id] = {
+                "team_name": u_info["team_name"],
+                "manager": u_info["display_name"],
+                "avatar": u_info["avatar"],
+                "wins": wins,
+                "losses": losses,
+                "ties": ties,
+                "fpts": round(fpts, 2)
+            }
+            
+            standings_list.append({
+                "Team": u_info["team_name"],
+                "Manager": u_info["display_name"],
+                "W": wins,
+                "L": losses,
+                "T": ties,
+                "Punkte Dafür": round(fpts, 2),
+                "Punkte Gegen": round(fpts_against, 2)
+            })
+        
+        standings_list = sorted(standings_list, key=lambda x: (x["W"], x["Punkte Dafür"]), reverse=True)
 
-    for year in years_to_try:
-        for base_url_template in base_urls:
-            url = base_url_template.format(year=year, league_id=league_id)
-            full_url = f"{url}?view=mMatchupScore&view=mScoreboard&view=mTeam&view=mSettings&view=mStandings&view=mMembers"
-            try:
-                res = requests.get(full_url, headers=headers, cookies=cookies, timeout=6)
-                if res.status_code == 200:
-                    data = res.json()
-                    
-                    members_map = {}
-                    for m in data.get('members', []):
-                        m_id = m.get('id')
-                        first = m.get('firstName', '').strip()
-                        last = m.get('lastName', '').strip()
-                        display = m.get('displayName', '').strip()
-                        full_name = f"{first} {last}".strip() if (first or last) else display
-                        if m_id:
-                            members_map[m_id] = full_name
+        # 4. Weekly Matchups
+        matchups_res = requests.get(f"{base_url}/matchups/{week_num}", timeout=5).json()
+        matchups_grouped = {}
+        for m in matchups_res:
+            m_id = m.get("matchup_id")
+            if not m_id:
+                continue
+            r_id = m.get("roster_id")
+            pts = round(m.get("points", 0.0), 2)
+            r_info = rosters_map.get(r_id, {"team_name": f"Team {r_id}", "manager": "-", "avatar": ""})
+            
+            if m_id not in matchups_grouped:
+                matchups_grouped[m_id] = []
+            matchups_grouped[m_id].append({
+                "team_name": r_info["team_name"],
+                "manager": r_info["manager"],
+                "avatar": r_info["avatar"],
+                "points": pts
+            })
 
-                    teams_map = {}
-                    teams_list = []
-                    for t in data.get('teams', []):
-                        t_id = t.get('id')
-                        loc = t.get('location', '').strip()
-                        nick = t.get('nickname', '').strip()
-                        
-                        owners = t.get('owners', [])
-                        owner_name = members_map.get(owners[0], '') if owners else ''
-                        
-                        if loc and nick and loc.lower() != "team":
-                            team_name = f"{loc} {nick}"
-                        elif nick and nick != str(t_id):
-                            team_name = nick
-                        elif owner_name:
-                            team_name = f"Team {owner_name}"
-                        else:
-                            team_name = f"Team {t_id}"
+        matchups_list = []
+        for m_id, teams in matchups_grouped.items():
+            if len(teams) >= 2:
+                matchups_list.append({
+                    "team1": teams[0],
+                    "team2": teams[1]
+                })
 
-                        logo = t.get('logo', '')
-                        record = t.get('record', {}).get('overall', {})
-                        wins = record.get('wins', 0)
-                        losses = record.get('losses', 0)
-                        ties = record.get('ties', 0)
-                        points = record.get('pointsFor', 0.0)
-                        
-                        teams_map[t_id] = {'name': team_name, 'logo': logo, 'manager': owner_name or '-'}
-                        teams_list.append({
-                            'Team': team_name,
-                            'Manager': owner_name or '-',
-                            'W': wins,
-                            'L': losses,
-                            'T': ties,
-                            'Punkte': round(points, 1)
-                        })
+        return {
+            "league_name": league_name,
+            "season": season,
+            "matchups": matchups_list,
+            "standings": standings_list
+        }, None
 
-                    scoring_period = data.get('scoringPeriodId', 1)
-                    schedule = data.get('schedule', [])
-                    
-                    current_matchups = []
-                    for m in schedule:
-                        if m.get('matchupPeriodId') == scoring_period:
-                            h_id = m.get('home', {}).get('teamId')
-                            a_id = m.get('away', {}).get('teamId')
-                            h_score = m.get('home', {}).get('totalPoints', 0.0)
-                            a_score = m.get('away', {}).get('totalPoints', 0.0)
-                            
-                            home_info = teams_map.get(h_id, {'name': f"Team {h_id}", 'logo': '', 'manager': '-'})
-                            away_info = teams_map.get(a_id, {'name': f"Team {a_id}", 'logo': '', 'manager': '-'})
-                            
-                            current_matchups.append({
-                                'home_name': home_info['name'],
-                                'home_manager': home_info['manager'],
-                                'home_logo': home_info['logo'],
-                                'home_score': round(h_score, 2),
-                                'away_name': away_info['name'],
-                                'away_manager': away_info['manager'],
-                                'away_logo': away_info['logo'],
-                                'away_score': round(a_score, 2)
-                            })
-                            
-                    return {
-                        'league_name': data.get('settings', {}).get('name', 'ESPN Fantasy League'),
-                        'season': year,
-                        'week': scoring_period,
-                        'matchups': current_matchups,
-                        'standings': teams_list
-                    }, None
-                else:
-                    last_error = f"HTTP Status {res.status_code}"
-            except Exception as e:
-                last_error = str(e)
+    except Exception as e:
+        return None, str(e)
 
-    return None, last_error
-
-# --- BERECHNUNG DER PUNKTE FÜR EINE EINZELNE WOCHE ---
+# --- PUNKTE RECHNUNGEN ---
 def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonus=True):
     scores = {u: 0 for u in MITSPIELER}
     weekly_hits = {u: 0 for u in MITSPIELER}
@@ -507,7 +511,6 @@ def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonu
 
     return scores, weekly_hits
 
-# --- KUMULATIVE PUNKTE-BERECHNUNG (KUMULIERT VON WOCHE 1 BIS TARGET_WEEK) ---
 def get_cumulative_scores(target_week):
     total_scores = {u: 0 for u in MITSPIELER}
     current_week_hits = {u: 0 for u in MITSPIELER}
@@ -521,7 +524,6 @@ def get_cumulative_scores(target_week):
         if w == target_week:
             current_week_hits = w_hits
             
-    # Saison-Bonuspunkte einmalig auf den Gesamthandstand aufrechnen
     for u in MITSPIELER:
         u_bonus = bonus_db.get(u, {})
         for q_idx, correct_ans in bonus_results.items():
@@ -581,12 +583,9 @@ scores, hits = get_cumulative_scores(woche)
 sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 bottom_two = [sorted_scores[-1][0], sorted_scores[-2][0]] if (len(sorted_scores) >= 2 and woche > 1) else []
 
-# --- PRÄZISE ZEITZONEN-GERECHNETE FRISTEN (SCHWEIZ / CEST) ---
 now = get_swiss_now()
 week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
 bonus_deadline = datetime(2026, 9, 10, 12, 0, 0)
-
-# SONDERREGELUNG WOCHE 3: Frist bis Donnerstag, 24.09.2026, 21:00 Uhr verlängert
 week3_extended_deadline = datetime(2026, 9, 24, 21, 0, 0)
 
 if woche < current_default_week:
@@ -614,7 +613,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
     "📈 Saisonverlauf", 
     "📊 Tipp-Analytics", 
     "🎯 Bonustipps",
-    "🏈 ESPN Fantasy"
+    "🏈 Sleeper Fantasy"
 ])
 
 # --- TAB 1: TIPP-FORMULAR + ADMIN ---
@@ -649,7 +648,7 @@ with tab1:
             st.write("📲 **Gruppe benachrichtigen / erinnern:**")
             if missing_users:
                 missing_str = ", ".join(missing_users)
-                msg = f"Hallo Leute! 🏈 Kurze Erinnerung für Woche {woche}: Folgende Spieler müssen noch tippen: {missing_str}. Deadline ist HEUTE um 21:00 Uhr!"
+                msg = f"Hallo Leute! 🏈 Kurze Erinnerung für Woche {woche}: Folgende Spieler müssen noch tippen: {missing_str}. Deadline ist Donnerstag um 12:00 Uhr!"
                 encoded_msg = urllib.parse.quote(msg)
                 st.markdown(f'<a href="https://api.whatsapp.com/send?text={encoded_msg}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;">💬 WhatsApp-Erinnerung senden</button></a>', unsafe_allow_html=True)
             else:
@@ -1001,7 +1000,7 @@ with tab8:
     chart_df = pd.DataFrame(history_data, index=[f"Start"] + [f"Woche {i}" for i in range(1, woche + 1)])
     st.line_chart(chart_df)
 
-# --- TAB 9: STRICKTE TIPP ANALYTICS ---
+# --- TAB 9: TIPP ANALYTICS ---
 with tab9:
     st.subheader("📊 Tipp-Trends & Gruppen-Analyse")
     st.caption("Statistische Auswertung aller abgegebenen Tipps der 8 Mitspieler.")
@@ -1132,61 +1131,56 @@ with tab10:
                     st.success("💥 **DATENBANK ERFOLGREICH ZURÜCKGESETZT!** Die App ist jetzt komplett leer und bereit für die Saison.")
                     st.rerun()
 
-# --- TAB 11: ESPN FANTASY INTEGRATION ---
+# --- TAB 11: SLEEPER FANTASY INTEGRATION ---
 with tab11:
-    st.subheader("🏈 ESPN Fantasy Football Live Center")
-    st.caption(f"Angebunden an ESPN League ID: **{ESPN_LEAGUE_ID}**")
+    st.subheader("🏈 Sleeper Fantasy Football Live Center")
+    st.caption(f"Angebunden an Sleeper League ID: **{SLEEPER_LEAGUE_ID}**")
     
-    fantasy_data, err_msg = fetch_espn_fantasy_data(ESPN_LEAGUE_ID)
+    sleeper_data, sleeper_err = fetch_sleeper_fantasy_data(SLEEPER_LEAGUE_ID, woche)
     
-    if err_msg or not fantasy_data:
-        st.error(f"⚠️ **ESPN API Antwort:** {err_msg if err_msg else 'Keine Daten erhalten'}")
-        
-        with st.expander("🛠️ Fehlerbehebung & Cookies hinterlegen"):
-            st.markdown("""
-                ### Warum kommt dieser Fehler?
-                1. **Öffentliche Freigabe bei ESPN:** Selbst wenn eine Liga auf *Public* gestellt ist, verlangt ESPN vor Beginn der neuen Saison manchmal zwingend Session-Cookies.
-                2. **So fügst du deine Cookies in Streamlit ein (Dauert 1 Minute):**
-                   - Gehe auf `fantasy.espn.com` und drücke `F12` im Browser.
-                   - Klicke oben auf **Anwendung (Application)** -> **Cookies** -> `https://fantasy.espn.com`.
-                   - Kopiere die Werte von **`espn_s2`** und **`SWID`**.
-                   - Trage sie in deinen Streamlit Cloud Settings unter **Secrets** so ein:
-                     ```toml
-                     ESPN_S2 = "dein_espn_s2_wert"
-                     ESPN_SWID = "{deine_swid}"
-                     ```
-            """)
+    if sleeper_err or not sleeper_data:
+        st.error(f"⚠️ **Sleeper API Fehler:** {sleeper_err if sleeper_err else 'Keine Daten empfangen'}")
     else:
-        st.success(f"🏆 **{fantasy_data['league_name']}** (Saison {fantasy_data['season']}) — Spieltag {fantasy_data['week']}")
+        st.success(f"🏆 **{sleeper_data['league_name']}** (Saison {sleeper_data['season']}) — Spieltag {woche}")
         
-        st.markdown("### ⚔️ Live-Matchups dieser Woche")
-        if not fantasy_data['matchups']:
+        st.markdown(f"### ⚔️ Matchups in Woche {woche}")
+        if not sleeper_data['matchups']:
             st.info("Keine aktiven Matchups für diese Woche gefunden.")
         else:
-            col_f1, col_f2 = st.columns(2)
-            for idx, m in enumerate(fantasy_data['matchups']):
-                target_col = col_f1 if idx % 2 == 0 else col_f2
+            col_s1, col_s2 = st.columns(2)
+            for idx, m in enumerate(sleeper_data['matchups']):
+                target_col = col_s1 if idx % 2 == 0 else col_s2
+                t1 = m['team1']
+                t2 = m['team2']
+                
+                t1_win = "winner-highlight" if t1['points'] > t2['points'] and t1['points'] > 0 else ""
+                t2_win = "winner-highlight" if t2['points'] > t1['points'] and t2['points'] > 0 else ""
+                
                 with target_col:
-                    h_m = f" <span style='font-size:0.8rem; color:#94a3b8;'>({m['home_manager']})</span>" if m['home_manager'] != '-' else ''
-                    a_m = f" <span style='font-size:0.8rem; color:#94a3b8;'>({m['away_manager']})</span>" if m['away_manager'] != '-' else ''
                     st.markdown(f"""
                         <div class='schedule-card'>
                             <div style='display: flex; justify-content: space-between; align-items: center;'>
-                                <div style='display: flex; align-items: center; gap: 8px;'>
-                                    {'<img src="' + m['home_logo'] + '" width="30">' if m['home_logo'] else ''}
-                                    <div><b>{m['home_name']}</b>{h_m}</div>
+                                <div style='display: flex; align-items: center; gap: 10px;'>
+                                    <img src='{t1['avatar']}' width='38' style='border-radius: 50%; border: 1px solid #38bdf8;'>
+                                    <div>
+                                        <div class='team-name {t1_win}'>{t1['team_name']}</div>
+                                        <div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t1['manager']}</div>
+                                    </div>
                                 </div>
-                                <div class='score-badge'>{m['home_score']} : {m['away_score']}</div>
-                                <div style='display: flex; align-items: center; gap: 8px;'>
-                                    <div><b>{m['away_name']}</b>{a_m}</div>
-                                    {'<img src="' + m['away_logo'] + '" width="30">' if m['away_logo'] else ''}
+                                <div class='score-badge'>{t1['points']} : {t2['points']}</div>
+                                <div style='display: flex; align-items: center; gap: 10px; flex-direction: row-reverse;'>
+                                    <img src='{t2['avatar']}' width='38' style='border-radius: 50%; border: 1px solid #38bdf8;'>
+                                    <div style='text-align: right;'>
+                                        <div class='team-name {t2_win}'>{t2['team_name']}</div>
+                                        <div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t2['manager']}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
-                    
+
         st.markdown("---")
         st.markdown("### 📊 Aktuelle Fantasy-Tabelle (Standings)")
-        if fantasy_data['standings']:
-            df_standings = pd.DataFrame(fantasy_data['standings'])
-            st.dataframe(df_standings, use_container_width=True)
+        if sleeper_data['standings']:
+            df_sleeper = pd.DataFrame(sleeper_data['standings'])
+            st.dataframe(df_sleeper, use_container_width=True)
