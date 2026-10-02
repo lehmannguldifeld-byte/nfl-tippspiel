@@ -162,13 +162,14 @@ else:
     margin-bottom: 20px;
 }
 .paper-box {
-    background: rgba(255, 255, 255, 0.95);
+    background: #ffffff !important;
     color: #0f172a !important;
     padding: 25px;
-    border-radius: 8px;
+    border-radius: 12px;
     border: 2px solid #0f172a;
     font-family: 'Georgia', serif;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    margin-bottom: 20px;
 }
 </style>""", unsafe_allow_html=True)
 
@@ -519,7 +520,6 @@ def generate_benchfield_pdf_bytes(week_num, top_user, top_score, pechvogel_name,
     
     styles = getSampleStyleSheet()
     
-    # Custom Newspaper Styles
     title_style = ParagraphStyle(
         'PaperTitle', parent=styles['Heading1'],
         fontName='Helvetica-Bold', fontSize=26, leading=30,
@@ -562,7 +562,6 @@ def generate_benchfield_pdf_bytes(week_num, top_user, top_score, pechvogel_name,
     story.append(Spacer(1, 8))
     story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#0f172a'), spaceAfter=12))
 
-    # SECTION 1: STORY DER WOCHE DER NFL
     story.append(Paragraph("🏈 1. STORY DER WOCHE DER NFL", sec_heading))
     nfl_story_text = f"""
     <b>Dramatik, Touchdowns und Overtime-Wahnsinn in Woche {week_num}!</b><br/>
@@ -571,7 +570,6 @@ def generate_benchfield_pdf_bytes(week_num, top_user, top_score, pechvogel_name,
     story.append(Paragraph(nfl_story_text, body_style))
     story.append(Spacer(1, 14))
 
-    # SECTION 2: TIPPSPIEL RECAP & HIGHLIGHTS
     story.append(Paragraph("📊 2. TIPPSPIEL RECAP & SPITZENREITER", sec_heading))
     
     col1_content = [
@@ -600,7 +598,6 @@ def generate_benchfield_pdf_bytes(week_num, top_user, top_score, pechvogel_name,
     story.append(Spacer(1, 20))
     story.append(Paragraph("<i>Fortsetzung & Sleeper Fantasy Center auf Seite 2 ➔</i>", meta_style))
     
-    # PAGE BREAK TO ENSURE EXACTLY 2 PAGES
     story.append(PageBreak())
 
     # ================= PAGE 2 =================
@@ -631,7 +628,6 @@ def generate_benchfield_pdf_bytes(week_num, top_user, top_score, pechvogel_name,
     story.append(fantasy_table)
     story.append(Spacer(1, 16))
 
-    # SECTION 4: HOMEZONE & AUSBLICK
     story.append(Paragraph("🏠 4. FOOTBALL-HOMEZONE & AUSBLICK", sec_heading))
     homezone_text = f"""
     <b>Wo schauen wir nächsten Sonntag Football?</b><br/>
@@ -717,7 +713,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.t
     "🎙️ Benchfield-Paper"
 ])
 
-# --- TAB 1 BIS 11 (UNVERÄNDERT SAUBER) ---
+# --- TAB 1 BIS 11 ---
 with tab1:
     if st.session_state["logged_user"] == "Pädu":
         st.markdown("<div class='admin-box'>", unsafe_allow_html=True)
@@ -1094,11 +1090,10 @@ with tab11:
             full_html = f"<table style='width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(30, 41, 59, 0.90); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);'><thead><tr style='background-color: rgba(15, 23, 42, 0.95); color: #38bdf8; text-align: left; text-transform: uppercase; letter-spacing: 0.5px;'><th style='padding: 12px 16px; font-size: 0.85rem;'>Rang</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Team & Manager</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Record (W-L-T)</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Punkte Dafür</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Punkte Gegen</th></tr></thead><tbody>{rows_html}</tbody></table>"
             st.markdown(full_html, unsafe_allow_html=True)
 
-# --- TAB 12: BENCHFIELD-PAPER (KI-REPORTER & PDF EXCLUSIVE FOR PÄDU) ---
+# --- TAB 12: BENCHFIELD-PAPER (GEFIXTES ONLINE LAYOUT & EXKLUSIVER PDF DOWNLOAD) ---
 with tab12:
     st.subheader(f"🎙️ KI-Liga-Reporter — „Benchfield-Paper“ (Woche {woche})")
     
-    # Extraktion von Daten für die Zeitung
     top_user_name = sorted_scores[0][0] if sorted_scores else "N/A"
     top_user_pts = sorted_scores[0][1] if sorted_scores else 0
     pechvogel_candidate = sorted_scores[-1][0] if sorted_scores else "Ronny"
@@ -1107,43 +1102,39 @@ with tab12:
     sample_trash_talk = f"„{trash_talk_list[-1]['text']}“ ({trash_talk_list[-1]['user']})" if trash_talk_list else "„Der nächste Spieltag gehört mir!“ – Anonym"
     next_host_name = hosts_db.get(str(woche), "Noch offen")
 
-    # BEREICH 1: ONLINE ZEITUNGS-VORSCHAU
-    st.markdown(f"""
-        <div class='paper-box'>
-            <h1 style='text-align: center; margin: 0; font-size: 2.5rem;'>📰 BENCHFIELD-PAPER</h1>
-            <p style='text-align: center; font-weight: bold; color: #0284c7; margin-top: 5px; text-transform: uppercase;'>Offizielle Liga-Zeitung der NFL Tippspiel & Fantasy Runde</p>
-            <p style='text-align: center; font-size: 0.8rem; color: #64748b;'>Ausgabe #{woche} | Saison 2026/27 | Chefredaktion: Pädu & Gemini AI</p>
-            <hr style='border: 1px solid #0f172a;'>
-            
-            <h3 style='color: #0f172a;'>🏈 1. STORY DER WOCHE DER NFL</h3>
-            <p><b>Spektakel, Touchdown-Feuerwerke und Drama in Woche {woche}!</b><br/>
-            Ein intensiver NFL-Spieltag liegt hinter uns. Überraschungs-Siege brachten die Gruppenquoten ins Wanken und forderten echte Experten-Kenntnisse. Wer kühlen Kopf bewahrte, holte sich die entscheidenden Punkte für das Leaderboard.</p>
-            
-            <hr style='border: 1px dashed #cbd5e1;'>
-            
-            <div style='display: flex; justify-content: space-between; gap: 20px;'>
-                <div style='flex: 1; background: #f1f5f9; padding: 12px; border-radius: 6px;'>
-                    <h4 style='color: #0284c7; margin-top: 0;'>📊 2. TIPPSPIEL RECAP</h4>
-                    <p><b>👑 Player of the Week:</b> <b style='color: #0f172a;'>{top_user_name}</b> führte das Feld mit <b>{top_user_pts} Pkt</b> an!</p>
-                    <p><b>💬 Trash Talk Zitat:</b> <i>{sample_trash_talk}</i></p>
-                </div>
-                <div style='flex: 1; background: #fef2f2; padding: 12px; border-radius: 6px;'>
-                    <h4 style='color: #f43f5e; margin-top: 0;'>⚡ 3. SLEEPER FANTASY CENTER</h4>
-                    <p><b>🤡 Pechvogel der Woche:</b> <b>{pechvogel_candidate}</b> verpasste knapp den Sieg und trauert ungünstigen Bank-Punkten hinterher!</p>
-                    <p><b>🏠 Homezone Vorschau:</b> Nächsten Sonntag schauen wir bei <b>{next_host_name}</b>!</p>
-                </div>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    # CLEAN SINGLE-LINE STRINGS TO PREVENT STREAMLIT MARKDOWN PARSING BUGS
+    paper_preview_html = (
+        f"<div class='paper-box'>"
+        f"<h1 style='text-align: center; margin: 0; font-size: 2.5rem; color: #0f172a;'>📰 BENCHFIELD-PAPER</h1>"
+        f"<p style='text-align: center; font-weight: bold; color: #0284c7; margin-top: 5px; text-transform: uppercase;'>Offizielle Liga-Zeitung der NFL Tippspiel & Fantasy Runde</p>"
+        f"<p style='text-align: center; font-size: 0.8rem; color: #64748b;'>Ausgabe #{woche} | Saison 2026/27 | Chefredaktion: Pädu & Gemini AI</p>"
+        f"<hr style='border: 1px solid #0f172a; margin: 15px 0;'>"
+        f"<h3 style='color: #0f172a; margin-top: 0;'>🏈 1. STORY DER WOCHE DER NFL</h3>"
+        f"<p style='color: #334155; line-height: 1.5;'><b>Spektakel, Touchdown-Feuerwerke und Drama in Woche {woche}!</b><br/>"
+        f"Ein intensiver NFL-Spieltag liegt hinter uns. Überraschungs-Siege brachten die Gruppenquoten ins Wanken und forderten echte Experten-Kenntnisse. Wer kühlen Kopf bewahrte, holte sich die entscheidenden Punkte für das Leaderboard.</p>"
+        f"<hr style='border: 1px dashed #cbd5e1; margin: 15px 0;'>"
+        f"<div style='display: flex; justify-content: space-between; gap: 20px;'>"
+        f"<div style='flex: 1; background: #f1f5f9; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1;'>"
+        f"<h4 style='color: #0284c7; margin-top: 0;'>📊 2. TIPPSPIEL RECAP</h4>"
+        f"<p style='color: #334155;'><b>👑 Player of the Week:</b> <b style='color: #0f172a;'>{top_user_name}</b> führte das Feld mit <b>{top_user_pts} Pkt</b> an!</p>"
+        f"<p style='color: #334155;'><b>💬 Trash Talk Zitat:</b> <i>{sample_trash_talk}</i></p>"
+        f"</div>"
+        f"<div style='flex: 1; background: #fef2f2; padding: 15px; border-radius: 8px; border: 1px solid #fca5a5;'>"
+        f"<h4 style='color: #f43f5e; margin-top: 0;'>⚡ 3. SLEEPER FANTASY CENTER</h4>"
+        f"<p style='color: #334155;'><b>🤡 Pechvogel der Woche:</b> <b>{pechvogel_candidate}</b> verpasste knapp den Sieg und trauert ungünstigen Bank-Punkten hinterher!</p>"
+        f"<p style='color: #334155;'><b>🏠 Homezone Vorschau:</b> Nächsten Sonntag schauen wir bei <b>{next_host_name}</b>!</p>"
+        f"</div>"
+        f"</div>"
+        f"</div>"
+    )
+
+    st.markdown(paper_preview_html, unsafe_allow_html=True)
 
     st.markdown("---")
-    
-    # BEREICH 2: EXKLUSIVER PDF DOWNLOAD BUTTON (NUR FÜR PÄDU)
     st.markdown("### 📥 Zeitung als 2-Seiten PDF herunterladen")
     
     if st.session_state.get("logged_user") == "Pädu":
         st.success("👑 **Redaktions-Zugriff gewährt (Hallo Pädu!):** Du kannst die offizielle 2-Seiten-Zeitung jetzt generieren und herunterladen.")
-        
         if REPORTLAB_AVAILABLE:
             pdf_bytes = generate_benchfield_pdf_bytes(
                 week_num=woche,
@@ -1153,7 +1144,6 @@ with tab12:
                 trash_talk_text=sample_trash_talk,
                 host_next=next_host_name
             )
-            
             st.download_button(
                 label=f"📄 Benchfield-Paper Woche {woche} (PDF) herunterladen",
                 data=pdf_bytes,
