@@ -8,7 +8,6 @@ import numpy as np
 import os
 import base64
 import urllib.parse
-import textwrap
 
 # --- SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
@@ -32,154 +31,127 @@ active_user_check = st.session_state.get("logged_user")
 
 if active_user_check == "Bössi":
     # Barrierefreies, mattes Dunkelblau mit maximalem Textkontrast für Bössi
-    st.markdown(textwrap.dedent("""
-        <style>
-        .stApp {
-            background-color: #0f172a !important;
-            background-image: none !important;
-            color: #ffffff !important;
-        }
-        .main-title {
-            text-align: center;
-            font-size: 3rem;
-            font-weight: 900;
-            color: #38bdf8 !important;
-            text-shadow: none !important;
-            margin-bottom: 10px;
-        }
-        .leaderboard-card, .game-card-compact, .schedule-card, .host-card, .redzone-card, .chat-bubble, .login-box, .admin-box {
-            background-color: #1e293b !important;
-            border: 2px solid #475569 !important;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            color: #ffffff !important;
-            box-shadow: none !important;
-        }
-        .team-name { font-size: 1.05rem !important; font-weight: 900 !important; color: #ffffff !important; }
-        .score-badge { background-color: #0284c7 !important; color: #ffffff !important; font-weight: 900 !important; }
-        </style>
-    """), unsafe_allow_html=True)
+    st.markdown("""<style>
+.stApp { background-color: #0f172a !important; background-image: none !important; color: #ffffff !important; }
+.main-title { text-align: center; font-size: 3rem; font-weight: 900; color: #38bdf8 !important; text-shadow: none !important; margin-bottom: 10px; }
+.leaderboard-card, .game-card-compact, .schedule-card, .host-card, .redzone-card, .chat-bubble, .login-box, .admin-box { background-color: #1e293b !important; border: 2px solid #475569 !important; border-radius: 12px; padding: 16px; margin-bottom: 12px; color: #ffffff !important; box-shadow: none !important; }
+.team-name { font-size: 1.05rem !important; font-weight: 900 !important; color: #ffffff !important; }
+.score-badge { background-color: #0284c7 !important; color: #ffffff !important; font-weight: 900 !important; }
+</style>""", unsafe_allow_html=True)
 else:
     # Reguläres Stadion-Flutlicht Design
-    st.markdown(textwrap.dedent("""
-        <style>
-        .stApp {
-            background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.45) 0%, rgba(30, 41, 59, 0.85) 55%, rgba(15, 23, 42, 0.98) 100%),
-                        url('https://images.unsplash.com/photo-1566577739112-5180d4bf9390?auto=format&fit=crop&w=1920&q=80');
-            background-size: cover;
-            background-attachment: fixed;
-            color: #f8fafc;
-        }
-        .main-title {
-            text-align: center;
-            font-size: 3rem;
-            font-weight: 900;
-            color: #0284c7;
-            text-shadow: 0 0 18px rgba(255, 255, 255, 0.8), 0 0 30px rgba(56, 189, 248, 0.5);
-            margin-bottom: 10px;
-        }
-        
-        .leaderboard-card {
-            background: rgba(30, 41, 59, 0.90);
-            border-left: 6px solid #38bdf8;
-            border-radius: 12px;
-            padding: 16px 24px;
-            margin-bottom: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
-            backdrop-filter: blur(4px);
-        }
-        .game-card-compact {
-            background-color: rgba(30, 41, 59, 0.88);
-            border-radius: 10px;
-            padding: 8px 12px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            margin-bottom: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
-
-        .schedule-card {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
-            border: 1px solid rgba(56, 189, 248, 0.3);
-            border-radius: 16px;
-            padding: 16px 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
-            backdrop-filter: blur(6px);
-        }
-        .host-card {
-            background: rgba(30, 41, 59, 0.90);
-            border: 1px solid rgba(56, 189, 248, 0.2);
-            border-radius: 12px;
-            padding: 14px 20px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        .host-card-next {
-            background: linear-gradient(135deg, rgba(2, 132, 199, 0.4) 0%, rgba(30, 41, 59, 0.95) 100%);
-            border: 2px solid #38bdf8;
-            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
-        }
-        .redzone-card {
-            background: linear-gradient(135deg, rgba(225, 29, 72, 0.25) 0%, rgba(30, 41, 59, 0.95) 100%);
-            border: 2px solid #f43f5e;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 15px;
-            box-shadow: 0 0 15px rgba(244, 63, 94, 0.3);
-        }
-        .team-box-left { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
-        .team-box-right { display: flex; align-items: center; justify-content: flex-start; gap: 6px; }
-        .team-name { font-size: 0.95rem; font-weight: 800; color: #f8fafc; }
-        .score-badge {
-            font-size: 1.2rem;
-            font-weight: 900;
-            color: #38bdf8;
-            background: rgba(15, 23, 42, 0.8);
-            padding: 4px 10px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        .winner-highlight { color: #f59e0b !important; text-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
-
-        .stTextInput input, .stSelectbox select {
-            color: #ffffff !important;
-            background-color: rgba(15, 23, 42, 0.8) !important;
-            border: 1px solid #38bdf8 !important;
-            border-radius: 8px !important;
-        }
-        .stTextInput label, .stSelectbox label { color: #f8fafc !important; font-weight: 600 !important; }
-        
-        .chat-bubble {
-            background: rgba(30, 41, 59, 0.85);
-            border-left: 4px solid #38bdf8;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-        .login-box {
-            background: rgba(30, 41, 59, 0.95);
-            border: 1px solid #38bdf8;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .admin-box {
-            background: rgba(15, 23, 42, 0.95);
-            border: 2px solid #f59e0b;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        </style>
-    """), unsafe_allow_html=True)
+    st.markdown("""<style>
+.stApp {
+    background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.45) 0%, rgba(30, 41, 59, 0.85) 55%, rgba(15, 23, 42, 0.98) 100%),
+                url('https://images.unsplash.com/photo-1566577739112-5180d4bf9390?auto=format&fit=crop&w=1920&q=80');
+    background-size: cover;
+    background-attachment: fixed;
+    color: #f8fafc;
+}
+.main-title {
+    text-align: center;
+    font-size: 3rem;
+    font-weight: 900;
+    color: #0284c7;
+    text-shadow: 0 0 18px rgba(255, 255, 255, 0.8), 0 0 30px rgba(56, 189, 248, 0.5);
+    margin-bottom: 10px;
+}
+.leaderboard-card {
+    background: rgba(30, 41, 59, 0.90);
+    border-left: 6px solid #38bdf8;
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(4px);
+}
+.game-card-compact {
+    background-color: rgba(30, 41, 59, 0.88);
+    border-radius: 10px;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    margin-bottom: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+.schedule-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+    backdrop-filter: blur(6px);
+}
+.host-card {
+    background: rgba(30, 41, 59, 0.90);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 12px;
+    padding: 14px 20px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+.host-card-next {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.4) 0%, rgba(30, 41, 59, 0.95) 100%);
+    border: 2px solid #38bdf8;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+}
+.redzone-card {
+    background: linear-gradient(135deg, rgba(225, 29, 72, 0.25) 0%, rgba(30, 41, 59, 0.95) 100%);
+    border: 2px solid #f43f5e;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 15px;
+    box-shadow: 0 0 15px rgba(244, 63, 94, 0.3);
+}
+.team-box-left { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.team-box-right { display: flex; align-items: center; justify-content: flex-start; gap: 6px; }
+.team-name { font-size: 0.95rem; font-weight: 800; color: #f8fafc; }
+.score-badge {
+    font-size: 1.2rem;
+    font-weight: 900;
+    color: #38bdf8;
+    background: rgba(15, 23, 42, 0.8);
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.winner-highlight { color: #f59e0b !important; text-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+.stTextInput input, .stSelectbox select {
+    color: #ffffff !important;
+    background-color: rgba(15, 23, 42, 0.8) !important;
+    border: 1px solid #38bdf8 !important;
+    border-radius: 8px !important;
+}
+.stTextInput label, .stSelectbox label { color: #f8fafc !important; font-weight: 600 !important; }
+.chat-bubble {
+    background: rgba(30, 41, 59, 0.85);
+    border-left: 4px solid #38bdf8;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+.login-box {
+    background: rgba(30, 41, 59, 0.95);
+    border: 1px solid #38bdf8;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+.admin-box {
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid #f59e0b;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+</style>""", unsafe_allow_html=True)
 
 # --- SCHWEIZER ZEITZONE HELPER ---
 def get_swiss_now():
@@ -602,11 +574,7 @@ with st.container():
             st.markdown("</div>", unsafe_allow_html=True)
         else:
             active_user = st.session_state["logged_user"]
-            st.markdown(f"""
-                <div class='login-box' style='border-color: #4ade80;'>
-                    <span style='font-size: 1.1rem;'>✅ Eingeloggt als: <b>{active_user}</b></span>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class='login-box' style='border-color: #4ade80;'><span style='font-size: 1.1rem;'>✅ Eingeloggt als: <b>{active_user}</b></span></div>""", unsafe_allow_html=True)
             if st.button("🔒 Ausloggen", key="logout_btn"):
                 st.session_state["logged_user"] = None
                 st.rerun()
@@ -737,12 +705,7 @@ with tab1:
                 col_home, col_pick, col_away = st.columns([1, 1, 1])
                 
                 with col_home:
-                    st.markdown(f"""
-                        <div class='team-box-left'>
-                            <span class='team-name'>{game['home_team']}</span>
-                            <img src='{game['home_logo']}' width='32'>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class='team-box-left'><span class='team-name'>{game['home_team']}</span><img src='{game['home_logo']}' width='32'></div>""", unsafe_allow_html=True)
                     
                 with col_pick:
                     options = [game['home_abbr'], game['away_abbr']]
@@ -762,12 +725,7 @@ with tab1:
                         new_tipps[game['id']] = selected
                         
                 with col_away:
-                    st.markdown(f"""
-                        <div class='team-box-right'>
-                            <img src='{game['away_logo']}' width='32'>
-                            <span class='team-name'>{game['away_team']}</span>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class='team-box-right'><img src='{game['away_logo']}' width='32'><span class='team-name'>{game['away_team']}</span></div>""", unsafe_allow_html=True)
                     
                 st.markdown("</div>", unsafe_allow_html=True)
 
@@ -791,18 +749,7 @@ with tab2:
         fire = " 🔥 ON FIRE (+10 Bonus!)" if hits[user] >= 6 else ""
         joker_badge = " 🃏 (Joker-Berechtigt!)" if user in bottom_two else ""
         
-        st.markdown(f"""
-            <div class='leaderboard-card'>
-                <div>
-                    <span style='font-size: 1.3rem; font-weight: bold;'>{badge} {user}</span>
-                    <span style='color: #4ade80; font-weight: bold; margin-left: 10px;'>{fire}</span>
-                    <span style='color: #f59e0b; font-weight: bold; margin-left: 10px;'>{joker_badge}</span>
-                </div>
-                <div style='font-size: 1.5rem; font-weight: 800; color: #38bdf8;'>
-                    {score} <span style='font-size: 0.9rem; color: #cbd5e1;'>Pkt</span>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class='leaderboard-card'><div><span style='font-size: 1.3rem; font-weight: bold;'>{badge} {user}</span><span style='color: #4ade80; font-weight: bold; margin-left: 10px;'>{fire}</span><span style='color: #f59e0b; font-weight: bold; margin-left: 10px;'>{joker_badge}</span></div><div style='font-size: 1.5rem; font-weight: 800; color: #38bdf8;'>{score} <span style='font-size: 0.9rem; color: #cbd5e1;'>Pkt</span></div></div>""", unsafe_allow_html=True)
 
 # --- TAB 3: TIPP-ÜBERSICHT ---
 with tab3:
@@ -867,35 +814,19 @@ with tab4:
         for r_idx, (u, l_pts) in enumerate(sorted_live, 1):
             diff = l_pts - scores[u]
             diff_text = f" <span style='color:#f43f5e; font-size:0.9rem;'>(+{diff} Live!)</span>" if diff > 0 else ""
-            st.markdown(f"""
-                <div class='redzone-card'>
-                    <div style='display:flex; justify-content:space-between; align-items:center;'>
-                        <span style='font-size:1.1rem; font-weight:bold;'>#{r_idx} {u} {diff_text}</span>
-                        <span style='font-size:1.4rem; font-weight:bold; color:#f43f5e;'>{l_pts} Pkt</span>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class='redzone-card'><div style='display:flex; justify-content:space-between; align-items:center;'><span style='font-size:1.1rem; font-weight:bold;'>#{r_idx} {u} {diff_text}</span><span style='font-size:1.4rem; font-weight:bold; color:#f43f5e;'>{l_pts} Pkt</span></div></div>""", unsafe_allow_html=True)
 
     with col_rz2:
         st.markdown("### 📺 Aktuelle Live-Spiele & Trends")
         for g in nfl_games:
             if g['in_progress']:
-                st.markdown(f"""
-                    <div class='game-card-compact' style='border-color: #f43f5e;'>
-                        <div style='color:#f43f5e; font-weight:bold; margin-bottom:5px;'>🔴 LIVE: {g['status_detail']}</div>
-                        <div style='display:flex; justify-content:space-between; align-items:center;'>
-                            <span><b>{g['home_team']}</b> ({g['home_score']})</span>
-                            <span style='font-size:1.2rem; font-weight:bold;'>VS</span>
-                            <span><b>{g['away_team']}</b> ({g['away_score']})</span>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"""<div class='game-card-compact' style='border-color: #f43f5e;'><div style='color:#f43f5e; font-weight:bold; margin-bottom:5px;'>🔴 LIVE: {g['status_detail']}</div><div style='display:flex; justify-content:space-between; align-items:center;'><span><b>{g['home_team']}</b> ({g['home_score']})</span><span style='font-size:1.2rem; font-weight:bold;'>VS</span><span><b>{g['away_team']}</b> ({g['away_score']})</span></div></div>""", unsafe_allow_html=True)
             elif g['completed']:
                 st.caption(f"✅ Beendet: {g['matchup']} — Endstand: {g['home_score']}:{g['away_score']}")
 
 # --- TAB 5: HEAD-TO-HEAD & TRASH TALK ---
 with tab5:
-    st.subheader("⚔️️ Head-to-Head Vergleich")
+    st.subheader("⚔️ Head-to-Head Vergleich")
     col_p1, col_p2 = st.columns(2)
     with col_p1: p1 = st.selectbox("Spieler 1:", MITSPIELER, index=0)
     with col_p2: p2 = st.selectbox("Spieler 2:", MITSPIELER, index=1)
@@ -959,19 +890,7 @@ with tab6:
         next_badge = " 🔥 <span style='color:#38bdf8; font-weight:bold;'>(Nächster Sonntag!)</span>" if is_next else ""
         
         with target_col:
-            st.markdown(f"""
-                <div class='{card_class}'>
-                    <div>
-                        <div style='font-size: 1.1rem; font-weight: 800; color: #f8fafc;'>
-                            Woche {w_idx} — 📅 {sunday_date} {next_badge}
-                        </div>
-                        <div style='font-size: 0.95rem; color: #94a3b8;'>
-                            Gastgeber: <b style='color: #38bdf8;'>{host_name}</b>
-                        </div>
-                    </div>
-                    <div style='font-size: 1.8rem;'>🏠</div>
-                </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class='{card_class}'><div><div style='font-size: 1.1rem; font-weight: 800; color: #f8fafc;'>Woche {w_idx} — 📅 {sunday_date} {next_badge}</div><div style='font-size: 0.95rem; color: #94a3b8;'>Gastgeber: <b style='color: #38bdf8;'>{host_name}</b></div></div><div style='font-size: 1.8rem;'>🏠</div></div>""", unsafe_allow_html=True)
 
     st.markdown("---")
     with st.expander("📝 Gastgeber eintragen / anpassen"):
@@ -1006,24 +925,7 @@ with tab7:
             a_win = "winner-highlight" if is_completed and g['winner_abbr'] == g['away_abbr'] else ""
             
             with target_col:
-                st.markdown(f"""
-                    <div class='schedule-card'>
-                        <div style='text-align: center; color: #94a3b8; font-size: 0.85rem; font-weight: 700; margin-bottom: 12px; letter-spacing: 0.5px;'>
-                            {g['status_detail']}
-                        </div>
-                        <div style='display: flex; justify-content: space-between; align-items: center;'>
-                            <div class='team-box-right'>
-                                <img src='{g['home_logo']}' width='45'>
-                                <span class='team-name {h_win}'>{g['home_team']}</span>
-                            </div>
-                            <div class='score-badge'>{g['home_score']} : {g['away_score']}</div>
-                            <div class='team-box-right' style='flex-direction: row-reverse;'>
-                                <img src='{g['away_logo']}' width='45'>
-                                <span class='team-name {a_win}'>{g['away_team']}</span>
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"""<div class='schedule-card'><div style='text-align: center; color: #94a3b8; font-size: 0.85rem; font-weight: 700; margin-bottom: 12px; letter-spacing: 0.5px;'>{g['status_detail']}</div><div style='display: flex; justify-content: space-between; align-items: center;'><div class='team-box-right'><img src='{g['home_logo']}' width='45'><span class='team-name {h_win}'>{g['home_team']}</span></div><div class='score-badge'>{g['home_score']} : {g['away_score']}</div><div class='team-box-right' style='flex-direction: row-reverse;'><img src='{g['away_logo']}' width='45'><span class='team-name {a_win}'>{g['away_team']}</span></div></div></div>""", unsafe_allow_html=True)
 
 # --- TAB 8: SAISONVERLAUF ---
 with tab8:
@@ -1193,27 +1095,7 @@ with tab11:
                 t1_win = "winner-highlight" if t1['points'] > t2['points'] and t1['points'] > 0 else ""
                 t2_win = "winner-highlight" if t2['points'] > t1['points'] and t2['points'] > 0 else ""
                 
-                st.markdown(f"""
-                    <div class='schedule-card'>
-                        <div style='display: flex; justify-content: space-between; align-items: center;'>
-                            <div style='display: flex; align-items: center; gap: 10px;'>
-                                <img src='{t1['avatar']}' width='42' style='border-radius: 50%; border: 2px solid #38bdf8;'>
-                                <div>
-                                    <div class='team-name {t1_win}'>{t1['team_name']}</div>
-                                    <div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t1['manager']}</div>
-                                </div>
-                            </div>
-                            <div class='score-badge' style='font-size: 1.3rem; padding: 6px 14px;'>{t1['points']} : {t2['points']}</div>
-                            <div style='display: flex; align-items: center; gap: 10px; flex-direction: row-reverse;'>
-                                <img src='{t2['avatar']}' width='42' style='border-radius: 50%; border: 2px solid #38bdf8;'>
-                                <div style='text-align: right;'>
-                                    <div class='team-name {t2_win}'>{t2['team_name']}</div>
-                                    <div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t2['manager']}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"""<div class='schedule-card'><div style='display: flex; justify-content: space-between; align-items: center;'><div style='display: flex; align-items: center; gap: 10px;'><img src='{t1['avatar']}' width='42' style='border-radius: 50%; border: 2px solid #38bdf8;'><div><div class='team-name {t1_win}'>{t1['team_name']}</div><div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t1['manager']}</div></div></div><div class='score-badge' style='font-size: 1.3rem; padding: 6px 14px;'>{t1['points']} : {t2['points']}</div><div style='display: flex; align-items: center; gap: 10px; flex-direction: row-reverse;'><img src='{t2['avatar']}' width='42' style='border-radius: 50%; border: 2px solid #38bdf8;'><div style='text-align: right;'><div class='team-name {t2_win}'>{t2['team_name']}</div><div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t2['manager']}</div></div></div></div></div>""", unsafe_allow_html=True)
                 
                 with st.expander(f"📋 Lineups & Roster-Punkte ({t1['team_name']} vs {t2['team_name']})"):
                     col_r1, col_r2 = st.columns(2)
@@ -1222,12 +1104,7 @@ with tab11:
                         if t1['starters']:
                             for p in t1['starters']:
                                 pos_color = "#38bdf8" if p['pos'] == "QB" else ("#4ade80" if p['pos'] == "RB" else ("#f43f5e" if p['pos'] == "WR" else "#f59e0b"))
-                                st.markdown(f"""
-                                    <div style='display: flex; justify-content: space-between; background: rgba(15, 23, 42, 0.6); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {pos_color};'>
-                                        <span><b style='color: {pos_color};'>[{p['pos']}]</b> {p['name']} <span style='font-size: 0.75rem; color: #94a3b8;'>({p['team']})</span></span>
-                                        <span style='font-weight: bold; color: #38bdf8;'>{p['pts']} Pkt</span>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown(f"""<div style='display: flex; justify-content: space-between; background: rgba(15, 23, 42, 0.6); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {pos_color};'><span><b style='color: {pos_color};'>[{p['pos']}]</b> {p['name']} <span style='font-size: 0.75rem; color: #94a3b8;'>({p['team']})</span></span><span style='font-weight: bold; color: #38bdf8;'>{p['pts']} Pkt</span></div>""", unsafe_allow_html=True)
                         else:
                             st.caption("Keine Starter-Daten vorhanden.")
                             
@@ -1236,12 +1113,7 @@ with tab11:
                         if t2['starters']:
                             for p in t2['starters']:
                                 pos_color = "#38bdf8" if p['pos'] == "QB" else ("#4ade80" if p['pos'] == "RB" else ("#f43f5e" if p['pos'] == "WR" else "#f59e0b"))
-                                st.markdown(f"""
-                                    <div style='display: flex; justify-content: space-between; background: rgba(15, 23, 42, 0.6); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {pos_color};'>
-                                        <span><b style='color: {pos_color};'>[{p['pos']}]</b> {p['name']} <span style='font-size: 0.75rem; color: #94a3b8;'>({p['team']})</span></span>
-                                        <span style='font-weight: bold; color: #38bdf8;'>{p['pts']} Pkt</span>
-                                    </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown(f"""<div style='display: flex; justify-content: space-between; background: rgba(15, 23, 42, 0.6); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {pos_color};'><span><b style='color: {pos_color};'>[{p['pos']}]</b> {p['name']} <span style='font-size: 0.75rem; color: #94a3b8;'>({p['team']})</span></span><span style='font-weight: bold; color: #38bdf8;'>{p['pts']} Pkt</span></div>""", unsafe_allow_html=True)
                         else:
                             st.caption("Keine Starter-Daten vorhanden.")
 
@@ -1251,38 +1123,8 @@ with tab11:
             rows_html = ""
             for rank_i, s in enumerate(sleeper_data['standings'], 1):
                 badge_icon = "🥇 " if rank_i == 1 else ("🥈 " if rank_i == 2 else ("🥉 " if rank_i == 3 else f"#{rank_i} "))
-                rows_html += f"""
-                    <tr>
-                        <td style="font-weight: bold; font-size: 1.1rem; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">{badge_icon}</td>
-                        <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <img src="{s['avatar']}" width="34" height="34" style="border-radius: 50%; border: 1px solid #38bdf8;">
-                                <div>
-                                    <div style="font-weight: 800; color: #f8fafc;">{s['team_name']}</div>
-                                    <div style="font-size: 0.8rem; color: #94a3b8;">{s['manager']}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);"><span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-weight: bold;">{s['wins']} - {s['losses']} - {s['ties']}</span></td>
-                        <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #4ade80; font-weight: 800;">{s['fpts']} Pkt</td>
-                        <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #cbd5e1;">{s['fpts_against']} Pkt</td>
-                    </tr>
-                """
+                rows_html += f"<tr><td style='font-weight: bold; font-size: 1.1rem; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);'>{badge_icon}</td><td style='padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);'><div style='display: flex; align-items: center; gap: 10px;'><img src='{s['avatar']}' width='34' height='34' style='border-radius: 50%; border: 1px solid #38bdf8;'><div><div style='font-weight: 800; color: #f8fafc;'>{s['team_name']}</div><div style='font-size: 0.8rem; color: #94a3b8;'>{s['manager']}</div></div></div></td><td style='padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);'><span style='background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-weight: bold;'>{s['wins']} - {s['losses']} - {s['ties']}</span></td><td style='padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #4ade80; font-weight: 800;'>{s['fpts']} Pkt</td><td style='padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #cbd5e1;'>{s['fpts_against']} Pkt</td></tr>"
 
-            html_table = textwrap.dedent(f"""
-                <table style="width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(30, 41, 59, 0.90); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);">
-                    <thead>
-                        <tr style="background-color: rgba(15, 23, 42, 0.95); color: #38bdf8; text-align: left; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <th style="padding: 12px 16px; font-size: 0.85rem;">Rang</th>
-                            <th style="padding: 12px 16px; font-size: 0.85rem;">Team & Manager</th>
-                            <th style="padding: 12px 16px; font-size: 0.85rem;">Record (W-L-T)</th>
-                            <th style="padding: 12px 16px; font-size: 0.85rem;">Punkte Dafür</th>
-                            <th style="padding: 12px 16px; font-size: 0.85rem;">Punkte Gegen</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {rows_html}
-                    </tbody>
-                </table>
-            """)
-            st.markdown(html_table, unsafe_allow_html=True)
+            full_html = f"<table style='width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(30, 41, 59, 0.90); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);'><thead><tr style='background-color: rgba(15, 23, 42, 0.95); color: #38bdf8; text-align: left; text-transform: uppercase; letter-spacing: 0.5px;'><th style='padding: 12px 16px; font-size: 0.85rem;'>Rang</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Team & Manager</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Record (W-L-T)</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Punkte Dafür</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Punkte Gegen</th></tr></thead><tbody>{rows_html}</tbody></table>"
+            
+            st.markdown(full_html, unsafe_allow_html=True)
