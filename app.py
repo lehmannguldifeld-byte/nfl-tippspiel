@@ -373,10 +373,23 @@ def get_nfl_games(week_num=1, season_type=2):
     except Exception:
         return []
 
-# --- SLEEPER FANTASY API INTEGRATION (FAST & PUBLIC) ---
+# --- CACHED SLEEPER NFL PLAYERS DATABASE (24H TTL FOR FAST LOAD) ---
+@st.cache_data(ttl=86400)
+def get_sleeper_players():
+    try:
+        res = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=8)
+        if res.status_code == 200:
+            return res.json()
+    except Exception:
+        pass
+    return {}
+
+# --- SLEEPER FANTASY API INTEGRATION INKL. ROSTERS & FANCY STANDINGS ---
 @st.cache_data(ttl=120)
 def fetch_sleeper_fantasy_data(league_id, week_num):
     base_url = f"https://api.sleeper.app/v1/league/{league_id}"
+    players_db = get_sleeper_players()
+    
     try:
         # 1. League Details
         league_res = requests.get(base_url, timeout=5).json()
@@ -409,7 +422,7 @@ def fetch_sleeper_fantasy_data(league_id, week_num):
         for r in rosters_res:
             r_id = r.get("roster_id")
             owner_id = r.get("owner_id")
-            u_info = users_map.get(owner_id, {"display_name": f"Team {r_id}", "team_name": f"Team {r_id}", "avatar": ""})
+            u_info = users_map.get(owner_id, {"display_name": f"Team {r_id}", "team_name": f"Team {r_id}", "avatar": "https://sleepercdn.com/images/v2/icons/player_default.webp"})
             
             settings = r.get("settings", {})
             wins = settings.get("wins", 0)
@@ -429,18 +442,19 @@ def fetch_sleeper_fantasy_data(league_id, week_num):
             }
             
             standings_list.append({
-                "Team": u_info["team_name"],
-                "Manager": u_info["display_name"],
-                "W": wins,
-                "L": losses,
-                "T": ties,
-                "Punkte Dafür": round(fpts, 2),
-                "Punkte Gegen": round(fpts_against, 2)
+                "avatar": u_info["avatar"],
+                "team_name": u_info["team_name"],
+                "manager": u_info["display_name"],
+                "wins": wins,
+                "losses": losses,
+                "ties": ties,
+                "fpts": round(fpts, 2),
+                "fpts_against": round(fpts_against, 2)
             })
         
-        standings_list = sorted(standings_list, key=lambda x: (x["W"], x["Punkte Dafür"]), reverse=True)
+        standings_list = sorted(standings_list, key=lambda x: (x["wins"], x["fpts"]), reverse=True)
 
-        # 4. Weekly Matchups
+        # 4. Weekly Matchups & Player Starters
         matchups_res = requests.get(f"{base_url}/matchups/{week_num}", timeout=5).json()
         matchups_grouped = {}
         for m in matchups_res:
@@ -451,13 +465,37 @@ def fetch_sleeper_fantasy_data(league_id, week_num):
             pts = round(m.get("points", 0.0), 2)
             r_info = rosters_map.get(r_id, {"team_name": f"Team {r_id}", "manager": "-", "avatar": ""})
             
+            # Extract Starters & Points
+            starters = m.get("starters", []) or []
+            starters_pts = m.get("starters_points", []) or []
+            players_pts = m.get("players_points", {}) or {}
+            
+            starters_list = []
+            for idx, p_id in enumerate(starters):
+                p_score = starters_pts[idx] if idx < len(starters_pts) else players_pts.get(p_id, 0.0)
+                p_info = players_db.get(str(p_id), {}) if players_db else {}
+                
+                p_fn = p_info.get("first_name", "")
+                p_ln = p_info.get("last_name", "")
+                full_n = p_info.get("full_name") or f"{p_fn} {p_ln}".strip() or f"Player {p_id}"
+                pos = p_info.get("position", "FLX")
+                team = p_info.get("team") or "FA"
+                
+                starters_list.append({
+                    "name": full_n,
+                    "pos": pos,
+                    "team": team,
+                    "pts": round(p_score, 2)
+                })
+
             if m_id not in matchups_grouped:
                 matchups_grouped[m_id] = []
             matchups_grouped[m_id].append({
                 "team_name": r_info["team_name"],
                 "manager": r_info["manager"],
                 "avatar": r_info["avatar"],
-                "points": pts
+                "points": pts,
+                "starters": starters_list
             })
 
         matchups_list = []
@@ -1131,7 +1169,7 @@ with tab10:
                     st.success("💥 **DATENBANK ERFOLGREICH ZURÜCKGESETZT!** Die App ist jetzt komplett leer und bereit für die Saison.")
                     st.rerun()
 
-# --- TAB 11: SLEEPER FANTASY INTEGRATION ---
+# --- TAB 11: SLEEPER FANTASY INTEGRATION (EXPANDED ROSTER & FANCY UI) ---
 with tab11:
     st.subheader("🏈 Sleeper Fantasy Football Live Center")
     st.caption(f"Angebunden an Sleeper League ID: **{SLEEPER_LEAGUE_ID}**")
@@ -1143,44 +1181,142 @@ with tab11:
     else:
         st.success(f"🏆 **{sleeper_data['league_name']}** (Saison {sleeper_data['season']}) — Spieltag {woche}")
         
-        st.markdown(f"### ⚔️ Matchups in Woche {woche}")
+        st.markdown(f"### ⚔️ Matchups & Starters in Woche {woche}")
         if not sleeper_data['matchups']:
             st.info("Keine aktiven Matchups für diese Woche gefunden.")
         else:
-            col_s1, col_s2 = st.columns(2)
             for idx, m in enumerate(sleeper_data['matchups']):
-                target_col = col_s1 if idx % 2 == 0 else col_s2
                 t1 = m['team1']
                 t2 = m['team2']
                 
                 t1_win = "winner-highlight" if t1['points'] > t2['points'] and t1['points'] > 0 else ""
                 t2_win = "winner-highlight" if t2['points'] > t1['points'] and t2['points'] > 0 else ""
                 
-                with target_col:
-                    st.markdown(f"""
-                        <div class='schedule-card'>
-                            <div style='display: flex; justify-content: space-between; align-items: center;'>
-                                <div style='display: flex; align-items: center; gap: 10px;'>
-                                    <img src='{t1['avatar']}' width='38' style='border-radius: 50%; border: 1px solid #38bdf8;'>
-                                    <div>
-                                        <div class='team-name {t1_win}'>{t1['team_name']}</div>
-                                        <div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t1['manager']}</div>
-                                    </div>
+                st.markdown(f"""
+                    <div class='schedule-card'>
+                        <div style='display: flex; justify-content: space-between; align-items: center;'>
+                            <div style='display: flex; align-items: center; gap: 10px;'>
+                                <img src='{t1['avatar']}' width='42' style='border-radius: 50%; border: 2px solid #38bdf8;'>
+                                <div>
+                                    <div class='team-name {t1_win}'>{t1['team_name']}</div>
+                                    <div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t1['manager']}</div>
                                 </div>
-                                <div class='score-badge'>{t1['points']} : {t2['points']}</div>
-                                <div style='display: flex; align-items: center; gap: 10px; flex-direction: row-reverse;'>
-                                    <img src='{t2['avatar']}' width='38' style='border-radius: 50%; border: 1px solid #38bdf8;'>
-                                    <div style='text-align: right;'>
-                                        <div class='team-name {t2_win}'>{t2['team_name']}</div>
-                                        <div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t2['manager']}</div>
-                                    </div>
+                            </div>
+                            <div class='score-badge' style='font-size: 1.3rem; padding: 6px 14px;'>{t1['points']} : {t2['points']}</div>
+                            <div style='display: flex; align-items: center; gap: 10px; flex-direction: row-reverse;'>
+                                <img src='{t2['avatar']}' width='42' style='border-radius: 50%; border: 2px solid #38bdf8;'>
+                                <div style='text-align: right;'>
+                                    <div class='team-name {t2_win}'>{t2['team_name']}</div>
+                                    <div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t2['manager']}</div>
                                 </div>
                             </div>
                         </div>
-                    """, unsafe_allow_html=True)
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                with st.expander(f"📋 Lineups & Roster-Punkte ({t1['team_name']} vs {t2['team_name']})"):
+                    col_r1, col_r2 = st.columns(2)
+                    with col_r1:
+                        st.markdown(f"**🏈 {t1['team_name']} Starters:**")
+                        if t1['starters']:
+                            for p in t1['starters']:
+                                pos_color = "#38bdf8" if p['pos'] == "QB" else ("#4ade80" if p['pos'] == "RB" else ("#f43f5e" if p['pos'] == "WR" else "#f59e0b"))
+                                st.markdown(f"""
+                                    <div style='display: flex; justify-content: space-between; background: rgba(15, 23, 42, 0.6); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {pos_color};'>
+                                        <span><b style='color: {pos_color};'>[{p['pos']}]</b> {p['name']} <span style='font-size: 0.75rem; color: #94a3b8;'>({p['team']})</span></span>
+                                        <span style='font-weight: bold; color: #38bdf8;'>{p['pts']} Pkt</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            st.caption("Keine Starter-Daten vorhanden.")
+                            
+                    with col_r2:
+                        st.markdown(f"**🏈 {t2['team_name']} Starters:**")
+                        if t2['starters']:
+                            for p in t2['starters']:
+                                pos_color = "#38bdf8" if p['pos'] == "QB" else ("#4ade80" if p['pos'] == "RB" else ("#f43f5e" if p['pos'] == "WR" else "#f59e0b"))
+                                st.markdown(f"""
+                                    <div style='display: flex; justify-content: space-between; background: rgba(15, 23, 42, 0.6); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {pos_color};'>
+                                        <span><b style='color: {pos_color};'>[{p['pos']}]</b> {p['name']} <span style='font-size: 0.75rem; color: #94a3b8;'>({p['team']})</span></span>
+                                        <span style='font-weight: bold; color: #38bdf8;'>{p['pts']} Pkt</span>
+                                    </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            st.caption("Keine Starter-Daten vorhanden.")
 
         st.markdown("---")
         st.markdown("### 📊 Aktuelle Fantasy-Tabelle (Standings)")
         if sleeper_data['standings']:
-            df_sleeper = pd.DataFrame(sleeper_data['standings'])
-            st.dataframe(df_sleeper, use_container_width=True)
+            html_table = """
+            <style>
+            .sleeper-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+                background: rgba(30, 41, 59, 0.90);
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            }
+            .sleeper-table th {
+                background-color: rgba(15, 23, 42, 0.95);
+                color: #38bdf8;
+                text-align: left;
+                padding: 12px 16px;
+                font-size: 0.9rem;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .sleeper-table td {
+                padding: 12px 16px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                color: #f8fafc;
+                font-size: 0.95rem;
+            }
+            .sleeper-table tr:last-child td { border-bottom: none; }
+            .sleeper-table tr:hover { background-color: rgba(56, 189, 248, 0.08); }
+            .wl-badge {
+                background: rgba(56, 189, 248, 0.15);
+                color: #38bdf8;
+                padding: 4px 8px;
+                border-radius: 6px;
+                font-weight: bold;
+            }
+            .pts-badge {
+                color: #4ade80;
+                font-weight: 800;
+            }
+            </style>
+            <table class="sleeper-table">
+                <thead>
+                    <tr>
+                        <th>Rang</th>
+                        <th>Team & Manager</th>
+                        <th>Record (W-L-T)</th>
+                        <th>Punkte Dafür</th>
+                        <th>Punkte Gegen</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            for rank_i, s in enumerate(sleeper_data['standings'], 1):
+                badge_icon = "🥇 " if rank_i == 1 else ("🥈 " if rank_i == 2 else ("🥉 " if rank_i == 3 else f"#{rank_i} "))
+                html_table += f"""
+                    <tr>
+                        <td style="font-weight: bold; font-size: 1.1rem;">{badge_icon}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <img src="{s['avatar']}" width="34" height="34" style="border-radius: 50%; border: 1px solid #38bdf8;">
+                                <div>
+                                    <div style="font-weight: 800; color: #f8fafc;">{s['team_name']}</div>
+                                    <div style="font-size: 0.8rem; color: #94a3b8;">{s['manager']}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="wl-badge">{s['wins']} - {s['losses']} - {s['ties']}</span></td>
+                        <td><span class="pts-badge">{s['fpts']} Pkt</span></td>
+                        <td style="color: #cbd5e1;">{s['fpts_against']} Pkt</td>
+                    </tr>
+                """
+            html_table += "</tbody></table>"
+            st.markdown(html_table, unsafe_allow_html=True)
