@@ -8,6 +8,7 @@ import numpy as np
 import os
 import base64
 import urllib.parse
+import textwrap
 
 # --- SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="NFL Tippspiel 2026/27", page_icon="🏈", layout="wide")
@@ -31,7 +32,7 @@ active_user_check = st.session_state.get("logged_user")
 
 if active_user_check == "Bössi":
     # Barrierefreies, mattes Dunkelblau mit maximalem Textkontrast für Bössi
-    st.markdown("""
+    st.markdown(textwrap.dedent("""
         <style>
         .stApp {
             background-color: #0f172a !important;
@@ -58,10 +59,10 @@ if active_user_check == "Bössi":
         .team-name { font-size: 1.05rem !important; font-weight: 900 !important; color: #ffffff !important; }
         .score-badge { background-color: #0284c7 !important; color: #ffffff !important; font-weight: 900 !important; }
         </style>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
 else:
     # Reguläres Stadion-Flutlicht Design
-    st.markdown("""
+    st.markdown(textwrap.dedent("""
         <style>
         .stApp {
             background: radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.45) 0%, rgba(30, 41, 59, 0.85) 55%, rgba(15, 23, 42, 0.98) 100%),
@@ -178,7 +179,7 @@ else:
             margin-bottom: 20px;
         }
         </style>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
 
 # --- SCHWEIZER ZEITZONE HELPER ---
 def get_swiss_now():
@@ -894,7 +895,7 @@ with tab4:
 
 # --- TAB 5: HEAD-TO-HEAD & TRASH TALK ---
 with tab5:
-    st.subheader("⚔️ Head-to-Head Vergleich")
+    st.subheader("⚔️️ Head-to-Head Vergleich")
     col_p1, col_p2 = st.columns(2)
     with col_p1: p1 = st.selectbox("Spieler 1:", MITSPIELER, index=0)
     with col_p2: p2 = st.selectbox("Spieler 2:", MITSPIELER, index=1)
@@ -1247,64 +1248,13 @@ with tab11:
         st.markdown("---")
         st.markdown("### 📊 Aktuelle Fantasy-Tabelle (Standings)")
         if sleeper_data['standings']:
-            html_table = """
-            <style>
-            .sleeper-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 10px;
-                background: rgba(30, 41, 59, 0.90);
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            }
-            .sleeper-table th {
-                background-color: rgba(15, 23, 42, 0.95);
-                color: #38bdf8;
-                text-align: left;
-                padding: 12px 16px;
-                font-size: 0.9rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-            .sleeper-table td {
-                padding: 12px 16px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-                color: #f8fafc;
-                font-size: 0.95rem;
-            }
-            .sleeper-table tr:last-child td { border-bottom: none; }
-            .sleeper-table tr:hover { background-color: rgba(56, 189, 248, 0.08); }
-            .wl-badge {
-                background: rgba(56, 189, 248, 0.15);
-                color: #38bdf8;
-                padding: 4px 8px;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-            .pts-badge {
-                color: #4ade80;
-                font-weight: 800;
-            }
-            </style>
-            <table class="sleeper-table">
-                <thead>
-                    <tr>
-                        <th>Rang</th>
-                        <th>Team & Manager</th>
-                        <th>Record (W-L-T)</th>
-                        <th>Punkte Dafür</th>
-                        <th>Punkte Gegen</th>
-                    </tr>
-                </thead>
-                <tbody>
-            """
+            rows_html = ""
             for rank_i, s in enumerate(sleeper_data['standings'], 1):
                 badge_icon = "🥇 " if rank_i == 1 else ("🥈 " if rank_i == 2 else ("🥉 " if rank_i == 3 else f"#{rank_i} "))
-                html_table += f"""
+                rows_html += f"""
                     <tr>
-                        <td style="font-weight: bold; font-size: 1.1rem;">{badge_icon}</td>
-                        <td>
+                        <td style="font-weight: bold; font-size: 1.1rem; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">{badge_icon}</td>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 <img src="{s['avatar']}" width="34" height="34" style="border-radius: 50%; border: 1px solid #38bdf8;">
                                 <div>
@@ -1313,10 +1263,26 @@ with tab11:
                                 </div>
                             </div>
                         </td>
-                        <td><span class="wl-badge">{s['wins']} - {s['losses']} - {s['ties']}</span></td>
-                        <td><span class="pts-badge">{s['fpts']} Pkt</span></td>
-                        <td style="color: #cbd5e1;">{s['fpts_against']} Pkt</td>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);"><span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-weight: bold;">{s['wins']} - {s['losses']} - {s['ties']}</span></td>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #4ade80; font-weight: 800;">{s['fpts']} Pkt</td>
+                        <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #cbd5e1;">{s['fpts_against']} Pkt</td>
                     </tr>
                 """
-            html_table += "</tbody></table>"
+
+            html_table = textwrap.dedent(f"""
+                <table style="width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(30, 41, 59, 0.90); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);">
+                    <thead>
+                        <tr style="background-color: rgba(15, 23, 42, 0.95); color: #38bdf8; text-align: left; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <th style="padding: 12px 16px; font-size: 0.85rem;">Rang</th>
+                            <th style="padding: 12px 16px; font-size: 0.85rem;">Team & Manager</th>
+                            <th style="padding: 12px 16px; font-size: 0.85rem;">Record (W-L-T)</th>
+                            <th style="padding: 12px 16px; font-size: 0.85rem;">Punkte Dafür</th>
+                            <th style="padding: 12px 16px; font-size: 0.85rem;">Punkte Gegen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows_html}
+                    </tbody>
+                </table>
+            """)
             st.markdown(html_table, unsafe_allow_html=True)
