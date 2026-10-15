@@ -18,7 +18,7 @@ try:
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib import colors
     REPORTLAB_AVAILABLE = True
-except Exception:
+except ImportError:
     REPORTLAB_AVAILABLE = False
 
 # --- SEITEN-KONFIGURATION ---
@@ -38,7 +38,7 @@ MITSPIELER = list(PASSWORDS.keys())
 if "logged_user" not in st.session_state:
     st.session_state["logged_user"] = None
 
-# --- DYNAMISCHES DESIGN ---
+# --- DYNAMISCHES DESIGN (BÖSSI HIGH-CONTRAST MOBILE MODE VS. STADION DESIGN) ---
 active_user_check = st.session_state.get("logged_user")
 
 if active_user_check == "Bössi":
@@ -164,7 +164,7 @@ else:
 .paper-box {
     background: #ffffff !important;
     color: #0f172a !important;
-    padding: 30px;
+    padding: 25px;
     border-radius: 12px;
     border: 2px solid #0f172a;
     font-family: 'Georgia', serif;
@@ -302,11 +302,8 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, 
         "hosts_db": hosts_db,
         "playoff_db": playoff_db
     }
-    try:
-        with open(DB_FILE, "w") as f:
-            json.dump(data, f, indent=4)
-    except Exception:
-        pass
+    with open(DB_FILE, "w") as f:
+        json.dump(data, f, indent=4)
     sync_to_github(data)
     return True
 
@@ -807,7 +804,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.t
     "🎙️ Benchfield-Paper"
 ])
 
-# --- TAB 1: TIPPEINGABE ---
+# --- TAB 1: TIPPEINGABE (INKL. SONDER-REGELUNG FÜR ANDY) ---
 with tab1:
     if st.session_state["logged_user"] == "Pädu":
         st.markdown("<div class='admin-box'>", unsafe_allow_html=True)
@@ -1100,3 +1097,148 @@ with tab10:
         active_u = st.session_state["logged_user"]
         st.markdown(f"### ✏️ Bonustipps eingeben / anpassen ({active_u})")
         u_playoff_pick = playoff_db.get(active_u, {}).get("sb_winner", "")
+        u_bonus = bonus_db.get(active_u, {})
+        with st.form("bonus_form_tab"):
+            sb_choice = st.text_input("🏆 Wer gewinnt den Super Bowl LXI? (25 Pkt)", value=u_playoff_pick, disabled=not can_edit_bonus)
+            new_b = {}
+            for idx, q in enumerate(BONUS_QUESTIONS):
+                q_key = f"q_{idx}"
+                current_val = u_bonus.get(q_key, "")
+                new_b[q_key] = st.text_input(q, value=current_val, disabled=not can_edit_bonus)
+            if can_edit_bonus and st.form_submit_button("🎯 Bonustipps speichern"):
+                if active_u not in playoff_db: playoff_db[active_u] = {}
+                playoff_db[active_u]["sb_winner"] = sb_choice.strip()
+                bonus_db[active_u] = new_b
+                if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
+                    st.success(f"✅ Bonustipps für **{active_u}** gespeichert!")
+                    st.rerun()
+
+    st.markdown("---")
+    st.markdown("### 📋 Übersicht aller Bonustipps der Gruppe")
+    if can_edit_bonus: st.warning("🔒 Die Bonustipps der anderen werden erst am **10.09.2026 um 12:00 Uhr** sichtbar!")
+    else:
+        overview_data = []
+        sb_row = {"Frage": "🏆 Super Bowl LXI Champion"}
+        for u in MITSPIELER: sb_row[u] = playoff_db.get(u, {}).get("sb_winner", "-")
+        overview_data.append(sb_row)
+        for idx, q in enumerate(BONUS_QUESTIONS):
+            q_key = f"q_{idx}"
+            q_row = {"Frage": q}
+            for u in MITSPIELER: q_row[u] = bonus_db.get(u, {}).get(q_key, "-")
+            overview_data.append(q_row)
+        df_bonus_overview = pd.DataFrame(overview_data)
+        st.dataframe(df_bonus_overview, use_container_width=True)
+
+    if st.session_state["logged_user"] == "Pädu":
+        st.markdown("---")
+        with st.expander("⚙️ Admin-Bereich: Auswertung, Musterlösung & RESET (Nur für Pädu)"):
+            with st.form("admin_bonus_form"):
+                admin_new_res = {}
+                admin_new_res["sb_winner"] = st.text_input("Richtiger Super Bowl Winner:", value=bonus_results.get("sb_winner", ""))
+                for idx, q in enumerate(BONUS_QUESTIONS):
+                    q_key = f"q_{idx}"
+                    admin_new_res[q_key] = st.text_input(f"Richtige Lösung: {q}", value=bonus_results.get(q_key, ""))
+                if st.form_submit_button("💾 Musterlösung speichern"):
+                    bonus_results = admin_new_res
+                    if save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, playoff_db):
+                        st.success("✅ **Musterlösung gespeichert!**")
+                        st.rerun()
+
+with tab11:
+    st.subheader("🏈 Sleeper Fantasy Football Live Center")
+    sleeper_data, sleeper_err = fetch_sleeper_fantasy_data(SLEEPER_LEAGUE_ID, woche)
+    if sleeper_err or not sleeper_data:
+        st.error(f"⚠️ **Sleeper API Fehler:** {sleeper_err if sleeper_err else 'Keine Daten empfangen'}")
+    else:
+        st.success(f"🏆 **{sleeper_data['league_name']}** (Saison {sleeper_data['season']}) — Spieltag {woche}")
+        st.markdown(f"### ⚔️ Matchups & Starters in Woche {woche}")
+        if not sleeper_data['matchups']: st.info("Keine aktiven Matchups für diese Woche gefunden.")
+        else:
+            for idx, m in enumerate(sleeper_data['matchups']):
+                t1, t2 = m['team1'], m['team2']
+                t1_win = "winner-highlight" if t1['points'] > t2['points'] and t1['points'] > 0 else ""
+                t2_win = "winner-highlight" if t2['points'] > t1['points'] and t2['points'] > 0 else ""
+                st.markdown(f"""<div class='schedule-card'><div style='display: flex; justify-content: space-between; align-items: center;'><div style='display: flex; align-items: center; gap: 10px;'><img src='{t1['avatar']}' width='42' style='border-radius: 50%; border: 2px solid #38bdf8;'><div><div class='team-name {t1_win}'>{t1['team_name']}</div><div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t1['manager']}</div></div></div><div class='score-badge' style='font-size: 1.3rem; padding: 6px 14px;'>{t1['points']} : {t2['points']}</div><div style='display: flex; align-items: center; gap: 10px; flex-direction: row-reverse;'><img src='{t2['avatar']}' width='42' style='border-radius: 50%; border: 2px solid #38bdf8;'><div style='text-align: right;'><div class='team-name {t2_win}'>{t2['team_name']}</div><div style='font-size: 0.8rem; color: #94a3b8;'>Manager: {t2['manager']}</div></div></div></div></div>""", unsafe_allow_html=True)
+                with st.expander(f"📋 Lineups & Roster-Punkte ({t1['team_name']} vs {t2['team_name']})"):
+                    col_r1, col_r2 = st.columns(2)
+                    with col_r1:
+                        st.markdown(f"**🏈 {t1['team_name']} Starters:**")
+                        if t1['starters']:
+                            for p in t1['starters']:
+                                pos_color = "#38bdf8" if p['pos'] == "QB" else ("#4ade80" if p['pos'] == "RB" else ("#f43f5e" if p['pos'] == "WR" else "#f59e0b"))
+                                st.markdown(f"""<div style='display: flex; justify-content: space-between; background: rgba(15, 23, 42, 0.6); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {pos_color};'><span><b style='color: {pos_color};'>[{p['pos']}]</b> {p['name']} <span style='font-size: 0.75rem; color: #94a3b8;'>({p['team']})</span></span><span style='font-weight: bold; color: #38bdf8;'>{p['pts']} Pkt</span></div>""", unsafe_allow_html=True)
+                    with col_r2:
+                        st.markdown(f"**🏈 {t2['team_name']} Starters:**")
+                        if t2['starters']:
+                            for p in t2['starters']:
+                                pos_color = "#38bdf8" if p['pos'] == "QB" else ("#4ade80" if p['pos'] == "RB" else ("#f43f5e" if p['pos'] == "WR" else "#f59e0b"))
+                                st.markdown(f"""<div style='display: flex; justify-content: space-between; background: rgba(15, 23, 42, 0.6); padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; border-left: 3px solid {pos_color};'><span><b style='color: {pos_color};'>[{p['pos']}]</b> {p['name']} <span style='font-size: 0.75rem; color: #94a3b8;'>({p['team']})</span></span><span style='font-weight: bold; color: #38bdf8;'>{p['pts']} Pkt</span></div>""", unsafe_allow_html=True)
+
+        st.markdown("---")
+        st.markdown("### 📊 Aktuelle Fantasy-Tabelle (Standings)")
+        if sleeper_data['standings']:
+            rows_html = ""
+            for rank_i, s in enumerate(sleeper_data['standings'], 1):
+                badge_icon = "🥇 " if rank_i == 1 else ("🥈 " if rank_i == 2 else ("🥉 " if rank_i == 3 else f"#{rank_i} "))
+                rows_html += f"<tr><td style='font-weight: bold; font-size: 1.1rem; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);'>{badge_icon}</td><td style='padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);'><div style='display: flex; align-items: center; gap: 10px;'><img src='{s['avatar']}' width='34' height='34' style='border-radius: 50%; border: 1px solid #38bdf8;'><div><div style='font-weight: 800; color: #f8fafc;'>{s['team_name']}</div><div style='font-size: 0.8rem; color: #94a3b8;'>{s['manager']}</div></div></div></td><td style='padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);'><span style='background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-weight: bold;'>{s['wins']} - {s['losses']} - {s['ties']}</span></td><td style='padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #4ade80; font-weight: 800;'>{s['fpts']} Pkt</td><td style='padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: #cbd5e1;'>{s['fpts_against']} Pkt</td></tr>"
+
+            full_html = f"<table style='width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(30, 41, 59, 0.90); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);'><thead><tr style='background-color: rgba(15, 23, 42, 0.95); color: #38bdf8; text-align: left; text-transform: uppercase; letter-spacing: 0.5px;'><th style='padding: 12px 16px; font-size: 0.85rem;'>Rang</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Team & Manager</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Record (W-L-T)</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Punkte Dafür</th><th style='padding: 12px 16px; font-size: 0.85rem;'>Punkte Gegen</th></tr></thead><tbody>{rows_html}</tbody></table>"
+            st.markdown(full_html, unsafe_allow_html=True)
+
+# --- TAB 12: BENCHFIELD-PAPER (DYNAMISCHER ZEITUNGS-BERICHT MIT EXKLUSIVEM PDF DOWNLOAD) ---
+with tab12:
+    st.subheader(f"🎙️ KI-Liga-Reporter — „Benchfield-Paper“ (Woche {woche})")
+    
+    sleeper_data_current, _ = fetch_sleeper_fantasy_data(SLEEPER_LEAGUE_ID, woche)
+    paper_stats = get_weekly_newspaper_data(woche, tipps_db, sleeper_data_current, comments_db, hosts_db, scores)
+
+    paper_preview_html = (
+        f"<div class='paper-box'>"
+        f"<h1 style='text-align: center; margin: 0; font-size: 2.2rem; color: #0f172a;'>📰 BENCHFIELD-PAPER</h1>"
+        f"<p style='text-align: center; font-weight: bold; color: #0284c7; margin-top: 5px; text-transform: uppercase;'>Offizielle Liga-Zeitung der NFL Tippspiel & Fantasy Runde</p>"
+        f"<p style='text-align: center; font-size: 0.85rem; color: #64748b;'>Ausgabe #{woche} | Saison 2026/27 | Chefredaktion: Pädu & Gemini AI</p>"
+        f"<hr style='border: 1px solid #0f172a; margin: 15px 0;'>"
+        f"<h3 style='color: #0f172a; margin-top: 0;'>🏈 1. STORY DER WOCHE DER NFL</h3>"
+        f"<p style='color: #334155; line-height: 1.6;'><b>Spektakel, Touchdown-Feuerwerke und Drama in Woche {woche}!</b><br/>"
+        f"Der vergangene NFL-Spieltag der Woche {woche} geht als einer der intensivsten der bisherigen Saison in die Geschichte ein. Überraschungs-Siege der Underdogs brachten die Gruppenquoten ins Wanken und forderten echte Experten-Kenntnisse. Wer kühlen Kopf bewahrte, holte sich die entscheidenden Punkte für das Leaderboard.</p>"
+        f"<hr style='border: 1px dashed #cbd5e1; margin: 15px 0;'>"
+        f"<div style='display: flex; justify-content: space-between; gap: 20px;'>"
+        f"<div style='flex: 1; background: #f1f5f9; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1;'>"
+        f"<h4 style='color: #0284c7; margin-top: 0;'>📊 2. TIPPSPIEL RECAP & SPITZENREITER</h4>"
+        f"<p style='color: #334155; line-height: 1.5;'><b>👑 Player of the Week:</b> <b style='color: #0f172a;'>{paper_stats['weekly_winner']}</b> (<b>{paper_stats['weekly_winner_pts']} Pkt</b>, {paper_stats['weekly_winner_hits']} Volltreffer)!<br/>"
+        f"<b>📉 Dämpfer der Woche:</b> <b>{paper_stats['weekly_flop']}</b> ({paper_stats['weekly_flop_pts']} Pkt).<br/>"
+        f"<b>🏆 Gesamtführender:</b> <b>{paper_stats['overall_leader']}</b> ({paper_stats['overall_leader_pts']} Pkt)."
+        f"</p></div>"
+        f"<div style='flex: 1; background: #fef2f2; padding: 15px; border-radius: 8px; border: 1px solid #fca5a5;'>"
+        f"<h4 style='color: #f43f5e; margin-top: 0;'>⚡ 3. SLEEPER FANTASY CENTER</h4>"
+        f"<p style='color: #334155; line-height: 1.5;'><b>🔥 Highscorer:</b> <b>{paper_stats['fantasy_mvp_name']}</b> ({paper_stats['fantasy_mvp_pts']} Pkt)!<br/>"
+        f"<b>🤡 Pechvogel:</b> <b>{paper_stats['fantasy_pechvogel']}</b> trauert knapp verpasstem Sieg nach.<br/>"
+        f"<b>⚔️ Krimi:</b> {paper_stats['closest_match_text']}"
+        f"</p></div>"
+        f"</div>"
+        f"<hr style='border: 1px dashed #cbd5e1; margin: 15px 0;'>"
+        f"<h4 style='color: #0f172a; margin-top: 0;'>💬 TRASH-TALK & HOMEZONE VORSCHAU</h4>"
+        f"<p style='color: #334155; line-height: 1.5;'><b>Zitat der Woche:</b> <i>{paper_stats['trash_talk']}</i><br/>"
+        f"<b>🏠 Nächste Homezone:</b> Am Sonntag schauen wir gemeinsam bei <b>{paper_stats['next_host_name']}</b>!</p>"
+        f"</div>"
+    )
+
+    st.markdown(paper_preview_html, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 📥 Ausführliche Zeitung als 2-Seiten PDF herunterladen")
+    
+    if st.session_state.get("logged_user") == "Pädu":
+        st.success("👑 **Redaktions-Zugriff gewährt (Hallo Pädu!):** Du kannst die offizielle 2-Seiten-Zeitung für diese Woche jetzt generieren und herunterladen.")
+        if REPORTLAB_AVAILABLE:
+            pdf_bytes = generate_benchfield_pdf_bytes(week_num=woche, stats=paper_stats)
+            st.download_button(
+                label=f"📄 Benchfield-Paper Woche {woche} (PDF) herunterladen",
+                data=pdf_bytes,
+                file_name=f"Benchfield_Paper_Woche_{woche}.pdf",
+                mime="application/pdf"
+            )
+        else:
+            st.error("⚠️ Bitte 'reportlab' in deiner requirements.txt eintragen, damit das PDF erzeugt werden kann.")
+    else:
+        st.info("🔒 **Hinweis:** Das Herunterladen der Druck-Ausgabe ist exklusiv für Chefredakteur **Pädu** reserviert. (Du kannst die Vorschau oben lesen!)")
