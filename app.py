@@ -18,7 +18,7 @@ try:
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib import colors
     REPORTLAB_AVAILABLE = True
-except ImportError:
+except Exception:
     REPORTLAB_AVAILABLE = False
 
 # --- SEITEN-KONFIGURATION ---
@@ -38,7 +38,7 @@ MITSPIELER = list(PASSWORDS.keys())
 if "logged_user" not in st.session_state:
     st.session_state["logged_user"] = None
 
-# --- DYNAMISCHES DESIGN (BÖSSI HIGH-CONTRAST MOBILE MODE VS. STADION DESIGN) ---
+# --- DYNAMISCHES DESIGN ---
 active_user_check = st.session_state.get("logged_user")
 
 if active_user_check == "Bössi":
@@ -229,7 +229,7 @@ def fetch_from_github():
             return None
         url = f"https://api.github.com/repos/{repo}/contents/{DB_FILE}"
         headers = {"Authorization": f"token {token}"}
-        res = requests.get(url, headers=headers)
+        res = requests.get(url, headers=headers, timeout=5)
         if res.status_code == 200:
             content_b64 = res.json().get("content", "")
             content_json = base64.b64decode(content_b64).decode("utf-8")
@@ -273,7 +273,7 @@ def sync_to_github(data_dict):
             return False
         url = f"https://api.github.com/repos/{repo}/contents/{DB_FILE}"
         headers = {"Authorization": f"token {token}"}
-        get_res = requests.get(url, headers=headers)
+        get_res = requests.get(url, headers=headers, timeout=5)
         sha = get_res.json().get("sha") if get_res.status_code == 200 else None
         
         content_json = json.dumps(data_dict, indent=4)
@@ -287,7 +287,7 @@ def sync_to_github(data_dict):
         if sha:
             payload["sha"] = sha
             
-        put_res = requests.put(url, headers=headers, json=payload)
+        put_res = requests.put(url, headers=headers, json=payload, timeout=5)
         return put_res.status_code in [200, 201]
     except Exception:
         return False
@@ -302,8 +302,11 @@ def save_db(tipps_db, bonus_db, bonus_results, joker_db, comments_db, hosts_db, 
         "hosts_db": hosts_db,
         "playoff_db": playoff_db
     }
-    with open(DB_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    try:
+        with open(DB_FILE, "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception:
+        pass
     sync_to_github(data)
     return True
 
@@ -325,7 +328,7 @@ def get_nfl_games(week_num=1, season_type=2):
     season_year = 2026
     url = f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={season_year}&week={week_num}&seasontype={season_type}"
     try:
-        res = requests.get(url).json()
+        res = requests.get(url, timeout=5).json()
         games = []
         events = res.get('events', [])
         for ev in events:
@@ -369,7 +372,7 @@ def get_nfl_games(week_num=1, season_type=2):
 @st.cache_data(ttl=86400)
 def get_sleeper_players():
     try:
-        res = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=8)
+        res = requests.get("https://api.sleeper.app/v1/players/nfl", timeout=5)
         if res.status_code == 200:
             return res.json()
     except Exception:
@@ -424,116 +427,4 @@ def fetch_sleeper_fantasy_data(league_id, week_num):
             if not m_id: continue
             r_id = m.get("roster_id")
             pts = round(m.get("points", 0.0), 2)
-            r_info = rosters_map.get(r_id, {"team_name": f"Team {r_id}", "manager": "-", "avatar": ""})
-            
-            starters = m.get("starters", []) or []
-            starters_pts = m.get("starters_points", []) or []
-            players_pts = m.get("players_points", {}) or {}
-            
-            starters_list = []
-            for idx, p_id in enumerate(starters):
-                p_score = starters_pts[idx] if idx < len(starters_pts) else players_pts.get(p_id, 0.0)
-                p_info = players_db.get(str(p_id), {}) if players_db else {}
-                p_fn = p_info.get("first_name", "")
-                p_ln = p_info.get("last_name", "")
-                full_n = p_info.get("full_name") or f"{p_fn} {p_ln}".strip() or f"Player {p_id}"
-                pos = p_info.get("position", "FLX")
-                team = p_info.get("team") or "FA"
-                starters_list.append({"name": full_n, "pos": pos, "team": team, "pts": round(p_score, 2)})
-
-            if m_id not in matchups_grouped: matchups_grouped[m_id] = []
-            matchups_grouped[m_id].append({"team_name": r_info["team_name"], "manager": r_info["manager"], "avatar": r_info["avatar"], "points": pts, "starters": starters_list})
-
-        matchups_list = []
-        for m_id, teams in matchups_grouped.items():
-            if len(teams) >= 2:
-                matchups_list.append({"team1": teams[0], "team2": teams[1]})
-
-        return {"league_name": league_name, "season": season, "matchups": matchups_list, "standings": standings_list}, None
-    except Exception as e:
-        return None, str(e)
-
-# --- PUNKTE RECHNUNGEN ---
-def calculate_scores(all_games, phase="Regular Season", week_num=1, include_bonus=True):
-    scores = {u: 0 for u in MITSPIELER}
-    weekly_hits = {u: 0 for u in MITSPIELER}
-    multiplier = 1 if phase == "Regular Season" else (2 if phase == "Playoffs" else 3)
-
-    for game in all_games:
-        if game['completed'] and game['winner_abbr']:
-            for u in MITSPIELER:
-                if tipps_db.get(u, {}).get(game['id']) == game['winner_abbr']:
-                    joker_game_id = joker_db.get(u, {}).get(str(week_num))
-                    joker_mult = 2 if (joker_game_id and joker_game_id == game['id']) else 1
-                    scores[u] += 5 * multiplier * joker_mult
-                    weekly_hits[u] += 1
-
-    for u in MITSPIELER:
-        if weekly_hits[u] >= 6: scores[u] += 10
-            
-    if include_bonus:
-        for u in MITSPIELER:
-            u_bonus = bonus_db.get(u, {})
-            for q_idx, correct_ans in bonus_results.items():
-                if correct_ans and u_bonus.get(q_idx, "").strip().lower() == correct_ans.strip().lower():
-                    scores[u] += 15
-            sb_correct = bonus_results.get("sb_winner", "")
-            u_sb = playoff_db.get(u, {}).get("sb_winner", "")
-            if sb_correct and u_sb and u_sb.strip().lower() == sb_correct.strip().lower():
-                scores[u] += 25
-
-    return scores, weekly_hits
-
-def get_cumulative_scores(target_week):
-    total_scores = {u: 0 for u in MITSPIELER}
-    current_week_hits = {u: 0 for u in MITSPIELER}
-    
-    for w in range(1, target_week + 1):
-        w_games = get_nfl_games(week_num=w)
-        w_phase = "Regular Season" if w <= 18 else "Playoffs"
-        w_scores, w_hits = calculate_scores(w_games, phase=w_phase, week_num=w, include_bonus=False)
-        for u in MITSPIELER: total_scores[u] += w_scores[u]
-        if w == target_week: current_week_hits = w_hits
-            
-    for u in MITSPIELER:
-        u_bonus = bonus_db.get(u, {})
-        for q_idx, correct_ans in bonus_results.items():
-            if correct_ans and u_bonus.get(q_idx, "").strip().lower() == correct_ans.strip().lower():
-                total_scores[u] += 15
-        sb_correct = bonus_results.get("sb_winner", "")
-        u_sb = playoff_db.get(u, {}).get("sb_winner", "")
-        if sb_correct and u_sb and u_sb.strip().lower() == sb_correct.strip().lower():
-            total_scores[u] += 25
-
-    return total_scores, current_week_hits
-
-# --- HELPER: AUTOMATISCHE DATEN-ANALYSE FÜR DEN ZEITUNGS-BERICHT ---
-def get_weekly_newspaper_data(week_num, tipps_db, sleeper_data, comments_db, hosts_db, scores):
-    w_games = get_nfl_games(week_num=week_num)
-    w_scores, w_hits = calculate_scores(w_games, phase="Regular Season" if week_num <= 18 else "Playoffs", week_num=week_num, include_bonus=False)
-    
-    sorted_weekly = sorted(w_scores.items(), key=lambda x: x[1], reverse=True)
-    weekly_winner = sorted_weekly[0][0] if sorted_weekly else "N/A"
-    weekly_winner_pts = sorted_weekly[0][1] if sorted_weekly else 0
-    weekly_winner_hits = w_hits.get(weekly_winner, 0)
-    
-    weekly_flop = sorted_weekly[-1][0] if sorted_weekly else "N/A"
-    weekly_flop_pts = sorted_weekly[-1][1] if sorted_weekly else 0
-    
-    sorted_overall = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    overall_leader = sorted_overall[0][0] if sorted_overall else "N/A"
-    overall_leader_pts = sorted_overall[0][1] if sorted_overall else 0
-    
-    fantasy_mvp_name = "N/A"
-    fantasy_mvp_pts = 0.0
-    fantasy_pechvogel = "N/A"
-    closest_match_text = "Keine aktiven Matchup-Daten vorhanden."
-    
-    if sleeper_data and sleeper_data.get("matchups"):
-        all_teams = []
-        matchup_diffs = []
-        for m in sleeper_data["matchups"]:
-            t1, t2 = m["team1"], m["team2"]
-            all_teams.append(t1)
-            all_teams.append(t2)
-            diff = abs(t1["points"] - t2["points"])
+            r_info = rosters_map.get(r_id, {"team
