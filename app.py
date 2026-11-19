@@ -770,24 +770,18 @@ now = get_swiss_now()
 week1_deadline = datetime(2026, 9, 10, 12, 0, 0)
 bonus_deadline = datetime(2026, 9, 10, 12, 0, 0)
 week3_extended_deadline = datetime(2026, 9, 24, 21, 0, 0)
+week11_extended_deadline = datetime(2026, 11, 19, 20, 0, 0)
 
-# --- GLOBALE DEADLINE SPRACHE & SICHTBARKEIT ---
+# --- GLOBALE DEADLINE SPERRE & SICHTBARKEIT ---
 if woche < current_default_week: is_after_thursday_noon = True
 elif woche > current_default_week: is_after_thursday_noon = False
 else:
     if woche == 1: is_after_thursday_noon = now >= week1_deadline
     elif woche == 3: is_after_thursday_noon = now >= week3_extended_deadline
+    elif woche == 11: is_after_thursday_noon = now >= week11_extended_deadline
     else: is_after_thursday_noon = (now.weekday() == 3 and now.hour >= 12) or (now.weekday() > 3)
 
-# --- INDIVIDUELLE TIPPSPERRE FÜR TAB 1 (EXKLUSIVE SONDERREGEL FÜR BÖSSI HEUTE BIS 23:30 UHR) ---
-active_logged_user = st.session_state.get("logged_user")
 is_tippen_locked_for_active_user = is_after_thursday_noon
-
-if active_logged_user == "Bössi" and woche == current_default_week:
-    # Bössi darf heute am Donnerstag ausnahmsweise bis 23:30 Uhr tippen
-    if now.weekday() == 3 and (12 <= now.hour < 23 or (now.hour == 23 and now.minute < 30)):
-        is_tippen_locked_for_active_user = False
-
 can_edit_bonus = now < bonus_deadline
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
@@ -805,7 +799,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.t
     "🎙️ Benchfield-Paper"
 ])
 
-# --- TAB 1: TIPPEINGABE (INKL. SONDER-REGELUNG FÜR BÖSSI) ---
+# --- TAB 1: TIPPEINGABE ---
 with tab1:
     if st.session_state["logged_user"] == "Pädu":
         st.markdown("<div class='admin-box'>", unsafe_allow_html=True)
@@ -832,7 +826,7 @@ with tab1:
             st.write("📲 **Gruppe benachrichtigen / erinnern:**")
             if missing_users:
                 missing_str = ", ".join(missing_users)
-                msg = f"Hallo Leute! 🏈 Kurze Erinnerung für Woche {woche}: Folgende Spieler müssen noch tippen: {missing_str}. Deadline ist Donnerstag um 12:00 Uhr!"
+                msg = f"Hallo Leute! 🏈 Kurze Erinnerung für Woche {woche}: Folgende Spieler müssen noch tippen: {missing_str}. Deadline ist heute um 20:00 Uhr!"
                 encoded_msg = urllib.parse.quote(msg)
                 st.markdown(f'<a href="https://api.whatsapp.com/send?text={encoded_msg}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:bold; cursor:pointer;">💬 WhatsApp-Erinnerung senden</button></a>', unsafe_allow_html=True)
             else: st.success("🎉 Genial! Alle 8 Mitspieler haben für Woche " + str(woche) + " vollständig getippt!")
@@ -846,10 +840,9 @@ with tab1:
         if is_tippen_locked_for_active_user:
             st.error(f"🚨 Die Tippabgabe für Woche {woche} ist GESPERRT!")
         else:
-            if active_user == "Bössi" and (now.weekday() == 3 and now.hour >= 12):
-                st.info("⏳ **Sonderfenster für Bössi:** Deine Tippabgabe ist heute einmalig verlängert bis **23:30 Uhr**!")
-            elif woche == 1: st.info("⏳ Tippabgabe für Woche 1 offen! Frist: **Donnerstag, 10.09.2026 um 12:00 Uhr**.")
+            if woche == 1: st.info("⏳ Tippabgabe für Woche 1 offen! Frist: **Donnerstag, 10.09.2026 um 12:00 Uhr**.")
             elif woche == 3: st.info("⏳ **Ausnahme für Woche 3:** Tippabgabe verlängert bis **heute Donnerstag, 24.09. um 21:00 Uhr**!")
+            elif woche == 11: st.info("⏳ **Ausnahme für Woche 11:** Tippabgabe für alle verlängert bis **heute Donnerstag, 19.11. um 20:00 Uhr**!")
             else: st.info(f"⏳ Tippabgabe offen! Deadline für Woche {woche}: Dieser Donnerstag um 12:00 Uhr mittags.")
 
         user_existing_tipps = tipps_db.get(active_user, {})
@@ -911,6 +904,7 @@ with tab3:
 
     if not is_after_thursday_noon:
         if woche == 3: st.warning("🔒 Die echten Tipps für Woche 3 werden heute um **21:00 Uhr** freigeschaltet!")
+        elif woche == 11: st.warning("🔒 Die echten Tipps für Woche 11 werden heute um **20:00 Uhr** freigeschaltet!")
         else: st.warning("🔒 Die echten Tipps für diese Woche werden erst am **Donnerstag um 12:00 Uhr** freigeschaltet!")
     else:
         if not nfl_games: st.info("Keine Spiele gefunden.")
@@ -973,7 +967,7 @@ with tab5:
                 diff_count += 1
                 st.info(f"⚡ **{g['matchup']}**: {p1} setzt auf **{t1}** 🆚 {p2} setzt auf **{t2}**")
         if diff_count == 0 and is_after_thursday_noon: st.success("Beide Spieler haben exakt dieselben Teams getippt!")
-        elif not is_after_thursday_noon: st.warning("🔒 Der direkte Tipp-Vergleich schaltet sich am Donnerstag frei!")
+        elif not is_after_thursday_noon: st.warning("🔒 Der direkte Tipp-Vergleich schaltet sich nach Ablauf der Tippfrist frei!")
 
     st.markdown("---")
     st.subheader("💬 Trash Talk Pinnwand")
